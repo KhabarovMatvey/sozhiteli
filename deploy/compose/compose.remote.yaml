@@ -1,0 +1,34 @@
+# Приватный доступ с телефона через Tailscale Serve.
+# Запускается вместе с compose.yaml. SOZHITELI_REMOTE_HOST — DNS-имя ПК
+# из Tailscale без протокола, порта и завершающей точки.
+# Инструкция: docs/REMOTE_ACCESS.md.
+# Существующие локальные порты остаются привязаны к 127.0.0.1.
+
+services:
+  keycloak:
+    environment:
+      KC_HOSTNAME: https://${SOZHITELI_REMOTE_HOST:?set SOZHITELI_REMOTE_HOST}:10000
+      KC_PROXY_HEADERS: xforwarded
+
+  profile:
+    environment:
+      OIDC_ISSUER: https://${SOZHITELI_REMOTE_HOST:?set SOZHITELI_REMOTE_HOST}:10000/realms/sozhiteli
+
+  matching:
+    environment:
+      OIDC_ISSUER: https://${SOZHITELI_REMOTE_HOST:?set SOZHITELI_REMOTE_HOST}:10000/realms/sozhiteli
+
+  interaction:
+    environment:
+      OIDC_ISSUER: https://${SOZHITELI_REMOTE_HOST:?set SOZHITELI_REMOTE_HOST}:10000/realms/sozhiteli
+
+  edge:
+    environment:
+      WEB_ORIGIN: https://${SOZHITELI_REMOTE_HOST:?set SOZHITELI_REMOTE_HOST}
+
+  web:
+    build:
+      args:
+        NEXT_PUBLIC_API_BASE_URL: https://${SOZHITELI_REMOTE_HOST:?set SOZHITELI_REMOTE_HOST}:8443
+        NEXT_PUBLIC_OIDC_AUTHORITY: https://${SOZHITELI_REMOTE_HOST:?set SOZHITELI_REMOTE_HOST}:10000/realms/sozhiteli
+        NEXT_PUBLIC_OIDC_CLIENT_ID: sozhiteli-web

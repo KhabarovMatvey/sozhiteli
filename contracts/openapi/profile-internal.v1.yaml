@@ -1,0 +1,201 @@
+openapi: 3.0.3
+info:
+  title: Sozhiteli Profile Internal API
+  version: 1.0.0
+  description: |
+    ВНУТРЕННИЙ API сервиса Profile. Не публикуется через edge-прокси и слушает
+    отдельный порт. Единственный потребитель - сервис Matching, который строит
+    по этой ленте собственную проекцию кандидатов (ADR-0004).
+
+    Аутентификация - OAuth2 client credentials: access token с audience
+    sozhiteli-internal и ролью internal.profile-changes.read.
+servers:
+  - url: http://profile:9080
+    description: Внутренняя сеть Compose
+security:
+  - serviceAuth: []
+tags:
+  - name: changes
+    description: Лента изменений анкет
+paths:
+  /internal/v1/profile-changes:
+    get:
+      tags: [changes]
+      operationId: listProfileChanges
+      summary: Изменения анкет после курсора
+      description: |
+        Возвращает ТЕКУЩЕЕ состояние анкет, изменившихся после курсора, в порядке
+        возрастания version. Это лента состояний, а не журнал событий: если анкета
+        менялась несколько раз, потребитель увидит только последнее состояние.
+
+        Гарантии:
+        - at-least-once: запись может прийти повторно, потребитель обязан
+          применять её идемпотентно и сравнивать version;
+        - отсутствие пропусков: в ответ попадают только записи, зафиксированные
+          транзакциями, которые завершились раньше всех ещё открытых;
+        - пустой items означает, что новых изменений нет, next_cursor равен
+          переданному cursor.
+      x-implementation-status: implemented
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          description: Непрозрачный курсор из предыдущего ответа. Без параметра - с начала.
+          schema:
+            type: string
+            maxLength: 128
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 500
+            default: 200
+      responses:
+        '200':
+          description: Страница изменений
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileChangePage'
+        '400':
+          description: Некорректный курсор или limit (code = invalid_request)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Токен отсутствует или недействителен (code = unauthorized)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: У вызывающего сервиса нет нужной роли (code = forbidden)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Любая другая ошибка в едином формате
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+components:
+  securitySchemes:
+    serviceAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token сервисного клиента, audience = sozhiteli-internal
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        code:
+          type: string
+        detail:
+          type: string
+        request_id:
+          type: string
+    ProfileChangePage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileChange'
+        next_cursor:
+          type: string
+          description: Курсор для следующего запроса
+    ProfileChange:
+      type: object
+      required: [user_id, version, deleted]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          format: int64
+          description: Монотонно растущая версия записи в пределах Profile
+        deleted:
+          type: boolean
+          description: true - анкета удалена, потребитель обязан удалить свою копию
+        profile:
+          $ref: '#/components/schemas/ProfileSnapshot'
+    ProfileSnapshot:
+      type: object
+      description: Состояние анкеты. Отсутствует, если deleted = true.
+      required:
+        - display_name
+        - birth_year
+        - gender
+        - occupation
+        - city_id
+        - districts
+        - budget_min_rub
+        - budget_max_rub
+        - move_in_from
+        - move_in_to
+        - roommate_gender
+        - questionnaire_version
+        - habits
+        - search_status
+        - updated_at
+      properties:
+        display_name:
+          type: string
+        birth_year:
+          type: integer
+          format: int32
+        gender:
+          type: string
+          enum: [female, male]
+        occupation:
+          type: string
+        city_id:
+          type: integer
+          format: int32
+        districts:
+          type: string
+        budget_min_rub:
+          type: integer
+          format: int32
+        budget_max_rub:
+          type: integer
+          format: int32
+        move_in_from:
+          type: string
+          format: date
+        move_in_to:
+          type: string
+          format: date
+        roommate_gender:
+          type: string
+          enum: [any, same]
+        questionnaire_version:
+          type: integer
+          format: int32
+        habits:
+          type: object
+          additionalProperties:
+            type: string
+        search_status:
+          type: string
+          enum: [searching, paused]
+        updated_at:
+          type: string
+          format: date-time

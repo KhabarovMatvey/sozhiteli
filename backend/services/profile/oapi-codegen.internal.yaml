@@ -1,0 +1,9 @@
+# Серверный интерфейс и типы ВНУТРЕННЕГО API Profile.
+# Источник: contracts/openapi/profile-internal.v1.yaml. Запуск: npm run gen
+package: internalapi
+output: internal/internalapi/api.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+  embedded-spec: true

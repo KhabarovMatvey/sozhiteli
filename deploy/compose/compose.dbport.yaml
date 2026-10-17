@@ -1,0 +1,17 @@
+# Необязательное дополнение ТОЛЬКО для локальной отладки: публикует PostgreSQL
+# на 127.0.0.1:5432, чтобы подключиться клиентом БД с хоста.
+#
+#   docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.dbport.yaml up -d
+#
+# Опубликованный порт требует выхода из внутренней сети, поэтому PostgreSQL
+# дополнительно подключается к сети debug. В обычном запуске (npm run infra:up)
+# этого файла нет и база с хоста недоступна.
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+    networks: [data, debug]
+
+networks:
+  debug:

@@ -1,0 +1,36 @@
+# Единственная публичная точка входа: HTTPS (сертификат Let's Encrypt
+# выпускается и продлевается автоматически) и маршрутизация по пути.
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	# Консоль администратора Keycloak и master realm снаружи закрыты:
+	# администрирование - через SSH-туннель (README.md, «Администрирование»).
+	# Блоки handle взаимоисключающие и проверяются по порядку, поэтому этот -
+	# первым, до общего /id/*.
+	@keycloak_admin path /id/admin /id/admin/* /id/realms/master /id/realms/master/*
+	handle @keycloak_admin {
+		respond 404
+	}
+
+	handle /api/* {
+		reverse_proxy edge:8080
+	}
+
+	handle /id/* {
+		reverse_proxy keycloak:8080
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

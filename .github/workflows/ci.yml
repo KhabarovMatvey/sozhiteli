@@ -1,0 +1,125 @@
+# Проверки проекта. Каждая задача повторяет команду, которую разработчик
+# запускает локально (см. README.md, раздел "Проверки").
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.27.2"
+  NODE_VERSION: "24"
+
+jobs:
+  contracts:
+    name: Контракты и сгенерированный код
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/**/go.sum
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: OpenAPI-контракты валидны
+        run: npm run contracts:lint
+      - name: Сгенерированный код соответствует контрактам и SQL
+        run: npm run gen:check
+
+  backend:
+    name: Backend
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:18.6-alpine
+        env:
+          POSTGRES_PASSWORD: integration-tests-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://postgres:integration-tests-only@127.0.0.1:5432/postgres?sslmode=disable
+      GO_TEST_RACE: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/**/go.sum
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Форматирование
+        run: npm run backend:fmt
+      - name: go.mod и go.sum соответствуют коду
+        run: npm run backend:tidy
+      - name: Сборка
+        run: npm run backend:build
+      - name: go vet
+        run: npm run backend:vet
+      - name: Линтер
+        run: npm run backend:lint
+      - name: Юнит-, контрактные и интеграционные тесты (с детектором гонок)
+        run: npm run backend:test:integration
+
+  images:
+    name: Образы и локальная среда
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm run setup
+      - name: Сборка образов (включая web), запуск среды, ожидание готовности
+        run: npm run app:up
+      - name: Сквозная инфраструктурная проверка
+        run: npm run infra:smoke
+      - name: Логи при ошибке
+        if: failure()
+        run: docker compose -f deploy/compose/compose.yaml --profile app logs --no-color --tail 200
+      - name: Остановка
+        if: always()
+        run: npm run infra:reset
+
+  clients:
+    name: Web, mobile и клиент API
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run setup
+      - name: Форматирование
+        run: npm run format:check
+      - name: Линтер
+        run: npm run lint
+      - name: Проверка типов
+        run: npm run typecheck
+      - name: Тесты
+        run: npm run test
+      - name: Сборка web
+        run: npm run web:build
+      - name: Проверка конфигурации mobile
+        run: npm run doctor -w @sozhiteli/mobile
+      - name: Сборка JS-бандла mobile
+        run: npm run export:check -w @sozhiteli/mobile

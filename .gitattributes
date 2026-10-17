@@ -1,0 +1,10 @@
+# Единые окончания строк: скрипты и конфигурация монтируются в Linux-контейнеры.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
+*.xlsx binary
+*.docx binary
+*.gen.go linguist-generated=true
+backend/services/*/internal/store/*.go linguist-generated=true
+packages/api-client/src/generated/** linguist-generated=true

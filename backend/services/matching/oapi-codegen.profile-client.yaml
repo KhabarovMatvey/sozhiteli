@@ -1,0 +1,9 @@
+# Клиент ВНУТРЕННЕГО API Profile, которым Matching читает ленту изменений.
+# Источник: contracts/openapi/profile-internal.v1.yaml. Запуск: npm run gen
+# Это копия контракта на стороне потребителя, а не общая библиотека: Matching
+# не импортирует код сервиса Profile.
+package: profileclient
+output: internal/profileclient/client.gen.go
+generate:
+  client: true
+  models: true

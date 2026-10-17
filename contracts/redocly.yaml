@@ -1,0 +1,27 @@
+# Проверка OpenAPI-контрактов: npm run contracts:lint
+# Файл лежит в contracts/, а не в корне репозитория: иначе openapi-typescript
+# подхватывает его и требует описать вывод для каждого API, включая внутренний.
+apis:
+  profile@v1:
+    root: openapi/profile.v1.yaml
+  profile-internal@v1:
+    root: openapi/profile-internal.v1.yaml
+  matching@v1:
+    root: openapi/matching.v1.yaml
+  interaction@v1:
+    root: openapi/interaction.v1.yaml
+
+extends:
+  - recommended
+
+rules:
+  # Правила проекта (docs/API_CONTRACTS.md).
+  operation-operationId: error
+  operation-operationId-unique: error
+  operation-4xx-response: error
+  no-unused-components: error
+  security-defined: error
+  # Локальные адреса в servers - осознанно: это контракты для разработки.
+  no-server-example.com: off
+  # Лицензия не указана: проект учебный и закрытый.
+  info-license: off

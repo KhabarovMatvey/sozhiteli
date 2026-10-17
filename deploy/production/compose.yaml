@@ -1,0 +1,294 @@
+# Промышленная среда на одной виртуальной машине (Cloud.ru Evolution Compute или
+# любой Linux-сервер с Docker). Инструкция - README.md в этой папке.
+#
+# Отличия от локальной среды (deploy/compose):
+#   - снаружи открыт только Caddy (80/443): HTTPS с сертификатом Let's Encrypt,
+#     один домен для всего: /      -> web
+#                            /api/* -> edge -> сервисы
+#                            /id/*  -> Keycloak (страницы входа)
+#     Сайт, API и вход на одном адресе, поэтому CORS не нужен;
+#   - Keycloak в режиме `start`, realm без тестовых пользователей и dev-клиента;
+#     консоль администратора снаружи закрыта, доступ - через SSH-туннель;
+#   - все пароли - из .env, созданного scripts/init-secrets.sh;
+#   - образы с тегом :prod, адреса подставляются из DOMAIN.
+
+name: sozhiteli-prod
+
+x-service-env: &service-env
+  LOG_LEVEL: info
+  OIDC_ISSUER: https://${DOMAIN:?run scripts/init-secrets.sh}/id/realms/sozhiteli
+  OIDC_JWKS_URL: http://keycloak:8080/id/realms/sozhiteli/protocol/openid-connect/certs
+  OIDC_AUDIENCE: sozhiteli-api
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  networks: [data, backend]
+  logging: &logging
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+x-migrate-defaults: &migrate-defaults
+  restart: "no"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  networks: [data]
+  command: ["migrate", "up"]
+  logging: *logging
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      edge:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    logging: *logging
+    networks:
+      public:
+        ipv4_address: 172.31.250.10
+
+  postgres:
+    image: postgres:18.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?}
+      PROFILE_MIGRATOR_PASSWORD: ${PROFILE_MIGRATOR_PASSWORD:?}
+      PROFILE_APP_PASSWORD: ${PROFILE_APP_PASSWORD:?}
+      MATCHING_MIGRATOR_PASSWORD: ${MATCHING_MIGRATOR_PASSWORD:?}
+      MATCHING_APP_PASSWORD: ${MATCHING_APP_PASSWORD:?}
+      INTERACTION_MIGRATOR_PASSWORD: ${INTERACTION_MIGRATOR_PASSWORD:?}
+      INTERACTION_APP_PASSWORD: ${INTERACTION_APP_PASSWORD:?}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      # Тот же скрипт создания баз и ролей, что и в локальной среде.
+      - ../compose/postgres/init:/docker-entrypoint-initdb.d:ro
+      # Резервные копии (scripts/backup.sh пишет сюда изнутри контейнера).
+      - ${BACKUP_DIR:-/var/backups/sozhiteli}:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    logging: *logging
+    networks: [data]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1
+    restart: unless-stopped
+    command: ["start", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: keycloak_app
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?}
+      KC_DB_POOL_MAX_SIZE: "20"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:?}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?}
+      # Внешний адрес: из него строятся ссылки страниц входа и issuer токенов.
+      KC_HOSTNAME: https://${DOMAIN}/id
+      KC_HTTP_RELATIVE_PATH: /id
+      # Сервисы ходят в Keycloak напрямую (keycloak:8080), issuer при этом
+      # остаётся внешним.
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      # Консоль администратора - только через SSH-туннель на порт 8081 (README).
+      KC_HOSTNAME_ADMIN: http://localhost:8081/id
+      # TLS завершает Caddy; Keycloak доверяет его заголовкам X-Forwarded-*.
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      JAVA_OPTS_KC_HEAP: "-XX:MaxRAMPercentage=65"
+      # Подставляются в keycloak/realm.json при первом импорте.
+      PUBLIC_URL: https://${DOMAIN}
+      MATCHING_CLIENT_SECRET: ${MATCHING_CLIENT_SECRET:?}
+    mem_limit: 1g
+    volumes:
+      - ./keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
+      - ../compose/keycloak/themes/sozhiteli:/opt/keycloak/themes/sozhiteli:ro
+    ports:
+      # Только для SSH-туннеля к консоли администратора; снаружи недоступен.
+      - "127.0.0.1:8081:8080"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /id/health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"status": "UP"' <&3
+      interval: 5s
+      timeout: 5s
+      # Первый запуск `start` пересобирает Keycloak под конфигурацию; на ВМ с
+      # ограниченной долей процессора (бесплатный тариф Cloud.ru) это минуты.
+      retries: 120
+      start_period: 300s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *logging
+    networks: [data, backend, public]
+
+  profile-migrate:
+    <<: *migrate-defaults
+    build:
+      context: ../../backend
+      dockerfile: services/profile/Dockerfile
+    image: sozhiteli/profile:prod
+    environment:
+      MIGRATE_DATABASE_URL: postgres://profile_migrator:${PROFILE_MIGRATOR_PASSWORD}@postgres:5432/profile_db?sslmode=disable
+
+  profile:
+    <<: *service-defaults
+    image: sozhiteli/profile:prod
+    environment:
+      <<: *service-env
+      DATABASE_URL: postgres://profile_app:${PROFILE_APP_PASSWORD}@postgres:5432/profile_db?sslmode=disable
+      INTERNAL_OIDC_AUDIENCE: sozhiteli-internal
+    healthcheck:
+      test: ["CMD", "/profile", "healthcheck"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    depends_on:
+      profile-migrate:
+        condition: service_completed_successfully
+
+  matching-migrate:
+    <<: *migrate-defaults
+    build:
+      context: ../../backend
+      dockerfile: services/matching/Dockerfile
+    image: sozhiteli/matching:prod
+    environment:
+      MIGRATE_DATABASE_URL: postgres://matching_migrator:${MATCHING_MIGRATOR_PASSWORD}@postgres:5432/matching_db?sslmode=disable
+
+  matching:
+    <<: *service-defaults
+    image: sozhiteli/matching:prod
+    environment:
+      <<: *service-env
+      DATABASE_URL: postgres://matching_app:${MATCHING_APP_PASSWORD}@postgres:5432/matching_db?sslmode=disable
+      PROFILE_INTERNAL_URL: http://profile:9080
+      OIDC_TOKEN_URL: http://keycloak:8080/id/realms/sozhiteli/protocol/openid-connect/token
+      SERVICE_CLIENT_ID: matching-service
+      SERVICE_CLIENT_SECRET: ${MATCHING_CLIENT_SECRET}
+    healthcheck:
+      test: ["CMD", "/matching", "healthcheck"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    depends_on:
+      matching-migrate:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+
+  interaction-migrate:
+    <<: *migrate-defaults
+    build:
+      context: ../../backend
+      dockerfile: services/interaction/Dockerfile
+    image: sozhiteli/interaction:prod
+    environment:
+      MIGRATE_DATABASE_URL: postgres://interaction_migrator:${INTERACTION_MIGRATOR_PASSWORD}@postgres:5432/interaction_db?sslmode=disable
+
+  interaction:
+    <<: *service-defaults
+    image: sozhiteli/interaction:prod
+    environment:
+      <<: *service-env
+      DATABASE_URL: postgres://interaction_app:${INTERACTION_APP_PASSWORD}@postgres:5432/interaction_db?sslmode=disable
+    healthcheck:
+      test: ["CMD", "/interaction", "healthcheck"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    depends_on:
+      interaction-migrate:
+        condition: service_completed_successfully
+
+  edge:
+    image: nginx:1.30.5-alpine
+    restart: unless-stopped
+    environment:
+      # Сайт и API на одном адресе: CORS-заголовки нужны только на случай
+      # запросов с этого же origin, других разрешённых источников нет.
+      WEB_ORIGIN: https://${DOMAIN}
+      MOBILE_WEB_ORIGIN: https://mobile-web.disabled.invalid
+    volumes:
+      - ../compose/edge/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      # Настоящий IP клиента из заголовка Caddy - для ограничения частоты по IP.
+      - ./edge/00-real-ip.conf:/etc/nginx/conf.d/00-real-ip.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    depends_on:
+      profile:
+        condition: service_healthy
+      matching:
+        condition: service_healthy
+      interaction:
+        condition: service_healthy
+    logging: *logging
+    networks: [backend, public]
+
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: https://${DOMAIN}
+        NEXT_PUBLIC_OIDC_AUTHORITY: https://${DOMAIN}/id/realms/sozhiteli
+        NEXT_PUBLIC_OIDC_CLIENT_ID: sozhiteli-web
+    image: sozhiteli/web:prod
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 300m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    logging: *logging
+    networks: [public]
+
+networks:
+  data:
+    internal: true
+  backend:
+  # Сеть Caddy и того, к чему он проксирует. Адрес Caddy фиксирован: edge
+  # доверяет заголовку X-Forwarded-For только от него (edge/00-real-ip.conf).
+  public:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

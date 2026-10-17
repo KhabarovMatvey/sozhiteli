@@ -1,0 +1,7 @@
+**/*_test.go
+**/*.md
+**/sqlc.yaml
+**/oapi-codegen.*.yaml
+tools
+go.work
+go.work.sum

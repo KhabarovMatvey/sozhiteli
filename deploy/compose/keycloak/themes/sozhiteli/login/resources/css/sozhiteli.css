@@ -1,0 +1,107 @@
+/*
+ * Оформление страниц входа под web-приложение (apps/web/src/app/globals.css):
+ * светло-серый фон, белая карточка со скруглением 16 px, синие кнопки.
+ * Меняются только переменные и классы PatternFly 5 темы keycloak.v2.
+ */
+
+:root {
+  --sz-bg: #f2f2f2;
+  --sz-text: #1a1a1a;
+  --sz-muted: #757575;
+  --sz-line: #e4e4e4;
+  --sz-primary: #0a8cf0;
+  --sz-primary-hover: #0077d1;
+  --sz-accent: #00b956;
+
+  --pf-v5-global--FontFamily--text: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --pf-v5-global--FontFamily--heading: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --pf-v5-global--primary-color--100: var(--sz-primary);
+  --pf-v5-global--primary-color--200: var(--sz-primary-hover);
+  --pf-v5-global--link--Color: var(--sz-primary);
+  --pf-v5-global--link--Color--hover: var(--sz-primary-hover);
+  --pf-v5-global--BorderRadius--sm: 12px;
+  --keycloak-card-top-color: transparent;
+}
+
+.login-pf body {
+  background: var(--sz-bg);
+  color: var(--sz-text);
+}
+
+.pf-v5-c-login__container {
+  grid-template-columns: minmax(0, 30rem);
+}
+
+/* Название сервиса над карточкой — как логотип в шапке сайта. */
+#kc-header-wrapper {
+  color: var(--sz-text) !important;
+  text-transform: none;
+  letter-spacing: -0.02em;
+  font-size: 26px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+#kc-header-wrapper::before {
+  content: '';
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 12px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M3 11.5 12 4l9 7.5' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='9' cy='15' r='2.6' fill='white'/%3E%3Ccircle cx='15' cy='15' r='2.6' fill='white'/%3E%3C/svg%3E")
+      center / 24px no-repeat,
+    linear-gradient(135deg, var(--sz-primary) 0%, var(--sz-accent) 100%);
+}
+
+.pf-v5-c-login__main {
+  border-radius: 16px;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 4px 16px rgb(0 0 0 / 0.06);
+  overflow: hidden;
+}
+
+.pf-v5-c-login__main-header {
+  border-top: none;
+}
+
+.pf-v5-c-title.pf-m-3xl {
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.pf-v5-c-form__label-text {
+  font-weight: 600;
+}
+
+.pf-v5-c-form-control {
+  --pf-v5-c-form-control--BorderRadius: 12px;
+  --pf-v5-c-form-control--before--BorderColor: var(--sz-line);
+  --pf-v5-c-form-control--after--BorderColor: transparent;
+  --pf-v5-c-form-control--hover--after--BorderColor: var(--sz-primary);
+  --pf-v5-c-form-control--focus--after--BorderColor: var(--sz-primary);
+  --pf-v5-c-form-control--BackgroundColor: #f5f5f5;
+  min-height: 46px;
+}
+
+.pf-v5-c-button {
+  --pf-v5-c-button--BorderRadius: 12px;
+  --pf-v5-c-button--FontWeight: 700;
+}
+
+.pf-v5-c-button.pf-m-primary {
+  --pf-v5-c-button--m-primary--BackgroundColor: var(--sz-primary);
+  --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--sz-primary-hover);
+  --pf-v5-c-button--m-primary--focus--BackgroundColor: var(--sz-primary-hover);
+  min-height: 48px;
+  font-size: 16px;
+}
+
+.pf-v5-c-login__main-footer-band {
+  border-top: 1px solid var(--sz-line);
+  color: var(--sz-muted);
+}

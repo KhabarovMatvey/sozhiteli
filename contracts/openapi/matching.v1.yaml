@@ -1,0 +1,341 @@
+openapi: 3.0.3
+info:
+  title: Sozhiteli Matching API
+  version: 1.0.0
+  description: |
+    Публичный API сервиса Matching. Отдаёт выдачу кандидатов, отфильтрованную по
+    обязательным условиям текущего пользователя, и сравнение бытовых привычек.
+
+    Matching работает на собственной проекции анкет (ADR-0004) и никогда не
+    возвращает контакты (см. Interaction API).
+
+    Правила контракта: docs/API_CONTRACTS.md.
+servers:
+  - url: http://localhost:8080/api/matching
+    description: Локальная среда (edge-прокси из deploy/compose)
+security:
+  - bearerAuth: []
+tags:
+  - name: candidates
+    description: Кандидаты и сравнение с текущим пользователем
+paths:
+  /v1/candidates:
+    get:
+      tags: [candidates]
+      operationId: listCandidates
+      summary: Выдача кандидатов для текущего пользователя
+      description: |
+        Только кандидаты со статусом searching, прошедшие обязательные условия:
+        тот же город, пересечение бюджетов, пересечение сроков заселения,
+        взаимное соблюдение предпочтения по полу соседа. Сам пользователь в
+        выдачу не попадает. Сортировка - по убыванию времени обновления анкеты.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: Страница выдачи
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidatePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/ProfileNotReady'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/candidates/lookup:
+    post:
+      tags: [candidates]
+      operationId: lookupCandidates
+      summary: Карточки кандидатов по списку идентификаторов
+      description: |
+        Используется экранами запросов на контакт, чтобы получить карточки
+        собеседников одним вызовом. Идентификаторы, для которых карточки нет,
+        в ответе молча отсутствуют. Обязательные условия здесь НЕ фильтруют.
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CandidateLookupRequest'
+      responses:
+        '200':
+          description: Найденные карточки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidateList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/ProfileNotReady'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/candidates/{user_id}:
+    get:
+      tags: [candidates]
+      operationId: getCandidate
+      summary: Карточка кандидата с совпадениями и различиями
+      description: |
+        Возвращает сравнение обязательных условий и ответов анкеты. Каждый
+        успешный вызов фиксируется как факт просмотра (измерение гипотезы,
+        ADR-0010).
+      x-implementation-status: implemented
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Карточка и сравнение
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidateDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Кандидат не найден (code = candidate_not_found)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          $ref: '#/components/responses/ProfileNotReady'
+        default:
+          $ref: '#/components/responses/Error'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token OIDC-провайдера, audience = sozhiteli-api
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Непрозрачный курсор из next_cursor предыдущего ответа
+      schema:
+        type: string
+        maxLength: 256
+  responses:
+    BadRequest:
+      description: Запрос не соответствует схеме (code = invalid_request)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Токен отсутствует или недействителен (code = unauthorized)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ProfileNotReady:
+      description: |
+        Анкета текущего пользователя ещё не создана или ещё не доставлена в
+        Matching (code = profile_not_ready). Клиент повторяет запрос позже,
+        учитывая заголовок Retry-After.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Error:
+      description: Любая другая ошибка в едином формате (429, 500, 501, 503)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Problem:
+      type: object
+      description: Единый формат ошибки (RFC 9457). Клиент ветвится по полю code.
+      required: [type, title, status, code]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        code:
+          type: string
+        detail:
+          type: string
+        request_id:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+    FieldError:
+      type: object
+      required: [field, code, message]
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+    CandidatePage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateCard'
+        next_cursor:
+          type: string
+          nullable: true
+          description: null - больше страниц нет
+    CandidateList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateCard'
+    CandidateLookupRequest:
+      type: object
+      required: [user_ids]
+      properties:
+        user_ids:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+    Compatibility:
+      type: object
+      description: Сводка сравнения анкет. Это счётчик совпадений, а не рейтинг и не рекомендация.
+      required: [matched_count, compared_count]
+      properties:
+        matched_count:
+          type: integer
+          format: int32
+          description: Сколько вопросов анкеты совпало
+        compared_count:
+          type: integer
+          format: int32
+          description: Сколько вопросов удалось сравнить
+    CandidateCard:
+      type: object
+      required:
+        - user_id
+        - display_name
+        - age
+        - occupation
+        - city_id
+        - districts
+        - budget_min_rub
+        - budget_max_rub
+        - move_in_from
+        - move_in_to
+        - search_status
+        - compatibility
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        age:
+          type: integer
+          format: int32
+        occupation:
+          type: string
+        city_id:
+          type: integer
+          format: int32
+        districts:
+          type: string
+        budget_min_rub:
+          type: integer
+          format: int32
+        budget_max_rub:
+          type: integer
+          format: int32
+        move_in_from:
+          type: string
+          format: date
+        move_in_to:
+          type: string
+          format: date
+        search_status:
+          type: string
+          enum: [searching, paused]
+        compatibility:
+          $ref: '#/components/schemas/Compatibility'
+    ConditionsComparison:
+      type: object
+      description: Сравнение обязательных условий с условиями текущего пользователя
+      required: [same_city, budget_overlap, move_in_overlap, roommate_gender_ok]
+      properties:
+        same_city:
+          type: boolean
+        budget_overlap:
+          type: boolean
+        move_in_overlap:
+          type: boolean
+        roommate_gender_ok:
+          type: boolean
+          description: Предпочтения обоих по полу соседа соблюдены
+    HabitComparison:
+      type: object
+      required: [question_code, result]
+      properties:
+        question_code:
+          type: string
+        my_option:
+          type: string
+          description: Код моего ответа; отсутствует, если я на вопрос не отвечал
+        their_option:
+          type: string
+          description: Код ответа кандидата; отсутствует, если кандидат не отвечал
+        result:
+          type: string
+          description: |
+            match - ответы одинаковые; difference - разные; not_comparable - у
+            одной из сторон нет ответа (анкеты разных версий)
+          enum: [match, difference, not_comparable]
+    CandidateDetail:
+      type: object
+      required: [card, conditions, habits]
+      properties:
+        card:
+          $ref: '#/components/schemas/CandidateCard'
+        conditions:
+          $ref: '#/components/schemas/ConditionsComparison'
+        habits:
+          type: array
+          items:
+            $ref: '#/components/schemas/HabitComparison'

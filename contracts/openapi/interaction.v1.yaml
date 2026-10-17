@@ -1,0 +1,374 @@
+openapi: 3.0.3
+info:
+  title: Sozhiteli Interaction API
+  version: 1.0.0
+  description: |
+    Публичный API сервиса Interaction. Владеет приватным контактом пользователя
+    и запросами на обмен контактами.
+
+    Правило раскрытия (ADR-0005): контакт другого человека виден только в
+    запросе со статусом accepted и только двум его участникам. Отправка запроса
+    означает согласие отправителя показать свой контакт получателю, если тот
+    примет запрос.
+
+    Правила контракта: docs/API_CONTRACTS.md.
+servers:
+  - url: http://localhost:8080/api/interaction
+    description: Локальная среда (edge-прокси из deploy/compose)
+security:
+  - bearerAuth: []
+tags:
+  - name: contact
+    description: Собственный контакт текущего пользователя
+  - name: contact-requests
+    description: Запросы на обмен контактами
+paths:
+  /v1/me/contact:
+    get:
+      tags: [contact]
+      operationId: getMyContact
+      summary: Контакт текущего пользователя
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Контакт
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Контакт ещё не указан (code = contact_not_found)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      tags: [contact]
+      operationId: putMyContact
+      summary: Указать или заменить контакт текущего пользователя
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Contact'
+      responses:
+        '200':
+          description: Сохранённый контакт
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/contact-requests:
+    get:
+      tags: [contact-requests]
+      operationId: listContactRequests
+      summary: Запросы на контакт текущего пользователя
+      description: Сортировка - по убыванию времени создания.
+      x-implementation-status: implemented
+      parameters:
+        - name: direction
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Direction'
+        - name: counterpart_id
+          in: query
+          required: false
+          description: Оставить только запросы с этим пользователем
+          schema:
+            type: string
+            format: uuid
+        - name: cursor
+          in: query
+          required: false
+          description: Непрозрачный курсор из next_cursor предыдущего ответа
+          schema:
+            type: string
+            maxLength: 256
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: Страница запросов
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactRequestPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      tags: [contact-requests]
+      operationId: createContactRequest
+      summary: Отправить запрос на обмен контактами
+      description: |
+        Коды ошибок 409: contact_required - у отправителя не указан контакт;
+        request_exists - запрос этому пользователю уже отправлен;
+        reverse_request_exists - этот пользователь уже прислал запрос, его нужно
+        принять или отклонить.
+        Код 422 self_request - запрос самому себе.
+        Код 429 rate_limited - превышен суточный лимит новых запросов.
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactRequestCreate'
+      responses:
+        '201':
+          description: Запрос создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactRequest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/contact-requests/{request_id}/accept:
+    post:
+      tags: [contact-requests]
+      operationId: acceptContactRequest
+      summary: Принять входящий запрос и обменяться контактами
+      description: |
+        Доступно только получателю запроса. Код 409 contact_required - у
+        получателя не указан контакт; already_responded - на запрос уже ответили.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Запрос принят, counterpart_contact заполнен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactRequest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/RequestNotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/contact-requests/{request_id}/decline:
+    post:
+      tags: [contact-requests]
+      operationId: declineContactRequest
+      summary: Отклонить входящий запрос
+      description: Доступно только получателю запроса. Код 409 already_responded - на запрос уже ответили.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Запрос отклонён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactRequest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/RequestNotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/Error'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token OIDC-провайдера, audience = sozhiteli-api
+  parameters:
+    RequestId:
+      name: request_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: Запрос не соответствует схеме (code = invalid_request)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Токен отсутствует или недействителен (code = unauthorized)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    RequestNotFound:
+      description: |
+        Запрос не существует или текущий пользователь не является его
+        получателем (code = contact_request_not_found). Оба случая намеренно
+        неразличимы.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Операция противоречит текущему состоянию, см. code
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableEntity:
+      description: Запрос корректен по схеме, но нарушает бизнес-правило
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TooManyRequests:
+      description: Превышен лимит (code = rate_limited), см. заголовок Retry-After
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Error:
+      description: Любая другая ошибка в едином формате (500, 501, 503)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Problem:
+      type: object
+      description: Единый формат ошибки (RFC 9457). Клиент ветвится по полю code.
+      required: [type, title, status, code]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        code:
+          type: string
+        detail:
+          type: string
+        request_id:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+    FieldError:
+      type: object
+      required: [field, code, message]
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+    ContactKind:
+      type: string
+      enum: [telegram, vk]
+    Contact:
+      type: object
+      required: [kind, value]
+      properties:
+        kind:
+          $ref: '#/components/schemas/ContactKind'
+        value:
+          type: string
+          minLength: 2
+          maxLength: 64
+          description: |
+            telegram - имя пользователя без символа @; vk - короткое имя или id
+            страницы. Формат для каждого kind проверяется сервером (422).
+    Direction:
+      type: string
+      description: incoming - запросы мне; outgoing - запросы от меня
+      enum: [incoming, outgoing]
+    ContactRequestStatus:
+      type: string
+      enum: [pending, accepted, declined]
+    ContactRequestCreate:
+      type: object
+      required: [recipient_id]
+      properties:
+        recipient_id:
+          type: string
+          format: uuid
+    ContactRequest:
+      type: object
+      required: [id, direction, counterpart_id, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        direction:
+          $ref: '#/components/schemas/Direction'
+        counterpart_id:
+          type: string
+          format: uuid
+          description: Второй участник запроса
+        status:
+          $ref: '#/components/schemas/ContactRequestStatus'
+        created_at:
+          type: string
+          format: date-time
+        responded_at:
+          type: string
+          format: date-time
+          description: Присутствует, когда status не pending
+        counterpart_contact:
+          $ref: '#/components/schemas/Contact'
+    ContactRequestPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactRequest'
+        next_cursor:
+          type: string
+          nullable: true
+          description: null - больше страниц нет

@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Сожители",
+    "slug": "sozhiteli",
+    "version": "0.0.0",
+    "scheme": "sozhiteli",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "app.sozhiteli.mobile",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "app.sozhiteli.mobile"
+    },
+    "plugins": ["expo-router", "expo-secure-store", "expo-web-browser"],
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    }
+  }
+}

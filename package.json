@@ -1,0 +1,59 @@
+{
+  "name": "sozhiteli",
+  "private": true,
+  "description": "Сервис поиска соседей для совместной аренды жилья: monorepo",
+  "packageManager": "npm@11.9.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "setup": "node tools/setup.mjs",
+    "gen": "node tools/gen.mjs",
+    "gen:check": "node tools/gen.mjs --check",
+    "contracts:lint": "redocly lint --config contracts/redocly.yaml",
+    "backend:build": "node tools/go.mjs build",
+    "backend:vet": "node tools/go.mjs vet",
+    "backend:fmt": "node tools/go.mjs fmt",
+    "backend:tidy": "node tools/go.mjs tidy",
+    "backend:lint": "node tools/go.mjs lint",
+    "backend:test": "node tools/go.mjs test",
+    "backend:test:integration": "node tools/go.mjs test:integration",
+    "infra:up": "docker compose -f deploy/compose/compose.yaml up -d --build --wait",
+    "infra:down": "docker compose -f deploy/compose/compose.yaml --profile app down",
+    "infra:reset": "docker compose -f deploy/compose/compose.yaml --profile app down -v",
+    "app:up": "docker compose -f deploy/compose/compose.yaml --profile app up -d --build --wait",
+    "infra:logs": "docker compose -f deploy/compose/compose.yaml logs -f",
+    "infra:smoke": "node tools/smoke.mjs",
+    "metrics": "node tools/metrics.mjs",
+    "load:smoke": "node tools/load.mjs smoke",
+    "load:baseline": "node tools/load.mjs baseline",
+    "load:product": "node tools/load.mjs product",
+    "load:seed": "node tools/load-data.mjs seed",
+    "load:clean": "node tools/load-data.mjs clean",
+    "demo:seed": "node tools/demo-data.mjs seed",
+    "demo:clean": "node tools/demo-data.mjs clean",
+    "web:dev": "npm run dev -w @sozhiteli/web",
+    "web:build": "npm run build -w @sozhiteli/web",
+    "mobile:start": "npm run start -w @sozhiteli/mobile",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@redocly/cli": "2.63.0",
+    "openapi-typescript": "7.13.0",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3"
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
+  }
+}

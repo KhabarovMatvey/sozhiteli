@@ -1,0 +1,13 @@
+# Сгенерированное и чужое
+node_modules
+.next
+.expo
+dist
+package-lock.json
+backend
+research
+# YAML контрактов и инфраструктуры выровнен вручную
+contracts
+deploy
+.github
+*.md

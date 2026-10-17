@@ -1,0 +1,9 @@
+# Серверный интерфейс и типы публичного API Profile.
+# Источник: contracts/openapi/profile.v1.yaml. Запуск: npm run gen
+package: api
+output: internal/api/api.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+  embedded-spec: true

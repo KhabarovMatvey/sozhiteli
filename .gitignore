@@ -1,0 +1,34 @@
+# Секреты и локальные настройки
+.env
+.env.*
+!.env.example
+
+# Исходные материалы исследования содержат сведения о респондентах.
+# Они лежат в research/ локально и в репозиторий не попадают; выжимка без
+# имён - в docs/RESEARCH_EVIDENCE.md. Решение о публикации принимает команда.
+/research/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+.expo/
+web-build/
+expo-env.d.ts
+
+# Go
+/backend/bin/
+*.test
+coverage.out
+
+# Прочее
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
+tests/load/results/
+

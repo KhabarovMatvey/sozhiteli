@@ -1,0 +1,264 @@
+# Локальная среда: PostgreSQL, Keycloak, три backend-сервиса и edge-прокси.
+#
+#   npm run setup       создать deploy/compose/.env из .env.example
+#   npm run infra:up    собрать и запустить, дождаться готовности
+#   npm run infra:down  остановить (данные сохраняются)
+#   npm run infra:reset остановить и удалить данные
+#
+# Сети:
+#   data     - внутренняя (internal: true), без выхода наружу. В ней PostgreSQL и
+#              только те компоненты, которым нужна база. Edge-прокси в неё НЕ входит.
+#   backend  - сервисы, Keycloak и edge-прокси.
+# Наружу (и только на 127.0.0.1) опубликованы два порта: 8080 (edge) и 8081 (Keycloak).
+# Порт PostgreSQL не публикуется; для отладки есть compose.dbport.yaml.
+
+name: sozhiteli
+
+x-service-env: &service-env
+  LOG_LEVEL: info
+  OIDC_ISSUER: http://localhost:8081/realms/sozhiteli
+  OIDC_JWKS_URL: http://keycloak:8080/realms/sozhiteli/protocol/openid-connect/certs
+  OIDC_AUDIENCE: sozhiteli-api
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  networks: [data, backend]
+
+x-migrate-defaults: &migrate-defaults
+  restart: "no"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  networks: [data]
+  command: ["migrate", "up"]
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:18.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?run npm run setup}
+      PROFILE_MIGRATOR_PASSWORD: ${PROFILE_MIGRATOR_PASSWORD:?}
+      PROFILE_APP_PASSWORD: ${PROFILE_APP_PASSWORD:?}
+      MATCHING_MIGRATOR_PASSWORD: ${MATCHING_MIGRATOR_PASSWORD:?}
+      MATCHING_APP_PASSWORD: ${MATCHING_APP_PASSWORD:?}
+      INTERACTION_MIGRATOR_PASSWORD: ${INTERACTION_MIGRATOR_PASSWORD:?}
+      INTERACTION_APP_PASSWORD: ${INTERACTION_APP_PASSWORD:?}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Проверка по TCP, а не через unix-сокет: во время первой инициализации
+      # работает временный сервер, который слушает только сокет и затем
+      # перезапускается. По TCP отвечает только окончательный сервер, когда
+      # все базы уже созданы.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    networks: [data]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1
+    restart: unless-stopped
+    # start-dev - режим разработки (HTTP, без кластера). Для промышленной среды
+    # нужен `start` за TLS-прокси, см. docs/SECURITY.md.
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: keycloak_app
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?}
+      # По умолчанию пул Keycloak - до 100 соединений, то есть весь max_connections
+      # PostgreSQL. Ограничиваем, чтобы сервисам всегда хватало соединений.
+      KC_DB_POOL_MAX_SIZE: "20"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:?}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?}
+      # Issuer в токенах всегда равен внешнему адресу, даже когда сервисы
+      # обращаются к Keycloak по внутреннему имени keycloak:8080.
+      KC_HOSTNAME: http://localhost:8081
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      JAVA_OPTS_KC_HEAP: "-XX:MaxRAMPercentage=65"
+    mem_limit: 900m
+    volumes:
+      - ./keycloak/realm-dev.json:/opt/keycloak/data/import/realm-dev.json:ro
+      # Тема страниц входа и регистрации (docs/adr/0013-login-theme.md).
+      - ./keycloak/themes/sozhiteli:/opt/keycloak/themes/sozhiteli:ro
+    ports:
+      - "127.0.0.1:8081:8080"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"status": "UP"' <&3
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [data, backend]
+
+  profile-migrate:
+    <<: *migrate-defaults
+    build:
+      context: ../../backend
+      dockerfile: services/profile/Dockerfile
+    image: sozhiteli/profile:dev
+    environment:
+      MIGRATE_DATABASE_URL: postgres://profile_migrator:${PROFILE_MIGRATOR_PASSWORD:?}@postgres:5432/profile_db?sslmode=disable
+
+  profile:
+    <<: *service-defaults
+    build:
+      context: ../../backend
+      dockerfile: services/profile/Dockerfile
+    image: sozhiteli/profile:dev
+    environment:
+      <<: *service-env
+      DATABASE_URL: postgres://profile_app:${PROFILE_APP_PASSWORD:?}@postgres:5432/profile_db?sslmode=disable
+      INTERNAL_OIDC_AUDIENCE: sozhiteli-internal
+    healthcheck:
+      test: ["CMD", "/profile", "healthcheck"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    depends_on:
+      profile-migrate:
+        condition: service_completed_successfully
+
+  matching-migrate:
+    <<: *migrate-defaults
+    build:
+      context: ../../backend
+      dockerfile: services/matching/Dockerfile
+    image: sozhiteli/matching:dev
+    environment:
+      MIGRATE_DATABASE_URL: postgres://matching_migrator:${MATCHING_MIGRATOR_PASSWORD:?}@postgres:5432/matching_db?sslmode=disable
+
+  matching:
+    <<: *service-defaults
+    build:
+      context: ../../backend
+      dockerfile: services/matching/Dockerfile
+    image: sozhiteli/matching:dev
+    environment:
+      <<: *service-env
+      DATABASE_URL: postgres://matching_app:${MATCHING_APP_PASSWORD:?}@postgres:5432/matching_db?sslmode=disable
+      PROFILE_INTERNAL_URL: http://profile:9080
+      OIDC_TOKEN_URL: http://keycloak:8080/realms/sozhiteli/protocol/openid-connect/token
+      SERVICE_CLIENT_ID: matching-service
+      SERVICE_CLIENT_SECRET: ${MATCHING_CLIENT_SECRET:?}
+    healthcheck:
+      test: ["CMD", "/matching", "healthcheck"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    depends_on:
+      matching-migrate:
+        condition: service_completed_successfully
+
+  interaction-migrate:
+    <<: *migrate-defaults
+    build:
+      context: ../../backend
+      dockerfile: services/interaction/Dockerfile
+    image: sozhiteli/interaction:dev
+    environment:
+      MIGRATE_DATABASE_URL: postgres://interaction_migrator:${INTERACTION_MIGRATOR_PASSWORD:?}@postgres:5432/interaction_db?sslmode=disable
+
+  interaction:
+    <<: *service-defaults
+    build:
+      context: ../../backend
+      dockerfile: services/interaction/Dockerfile
+    image: sozhiteli/interaction:dev
+    environment:
+      <<: *service-env
+      DATABASE_URL: postgres://interaction_app:${INTERACTION_APP_PASSWORD:?}@postgres:5432/interaction_db?sslmode=disable
+    healthcheck:
+      test: ["CMD", "/interaction", "healthcheck"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    depends_on:
+      interaction-migrate:
+        condition: service_completed_successfully
+
+  edge:
+    image: nginx:1.30.5-alpine
+    restart: unless-stopped
+    environment:
+      # Origin web-приложения, которому разрешены запросы из браузера (CORS).
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      # Только для разработки: мобильное приложение в веб-режиме Expo (npm run web).
+      MOBILE_WEB_ORIGIN: ${MOBILE_WEB_ORIGIN:-http://localhost:8082}
+    volumes:
+      - ./edge/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    depends_on:
+      profile:
+        condition: service_healthy
+      matching:
+        condition: service_healthy
+      interaction:
+        condition: service_healthy
+    networks: [backend]
+
+  # Web-приложение в production-сборке. Запускается только с профилем app
+  # (npm run app:up), чтобы не занимать порт 3000 при `npm run web:dev`.
+  # Браузер сам ходит в edge и Keycloak, поэтому сеть backend контейнеру не нужна.
+  web:
+    profiles: [app]
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+        NEXT_PUBLIC_OIDC_AUTHORITY: http://localhost:8081/realms/sozhiteli
+        NEXT_PUBLIC_OIDC_CLIENT_ID: sozhiteli-web
+    image: sozhiteli/web:dev
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 300m
+    ports:
+      - "127.0.0.1:3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    depends_on:
+      edge:
+        condition: service_healthy
+    networks: [frontend]
+
+networks:
+  frontend:
+  data:
+    internal: true
+  backend:
+
+volumes:
+  postgres-data:
