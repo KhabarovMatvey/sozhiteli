@@ -1,5 +1,5 @@
 // Package profilerules holds the business rules a profile must satisfy before
-// it is saved (backlog task P-03). The rules are pure functions: no HTTP, no
+// it is saved. The rules are pure functions: no HTTP, no
 // database, no clock of their own, so every rule is unit-tested directly.
 //
 // Rules expressible in the OpenAPI contract (types, enums, raw lengths, value
@@ -137,7 +137,7 @@ var (
 
 // containsContact reports whether free text carries a way to reach the person
 // directly. Such text would bypass the contact exchange, which only reveals a
-// contact after mutual consent (docs/SECURITY.md). It is a barrier against
+// contact after mutual consent (README.md, section 7). It is a barrier against
 // simple workarounds, not a guarantee.
 func containsContact(text string) bool {
 	lower := strings.ToLower(text)

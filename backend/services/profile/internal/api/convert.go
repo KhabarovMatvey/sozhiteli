@@ -11,7 +11,7 @@ import (
 )
 
 // Database rows and API types are different types on purpose: a schema change
-// must never silently change the API (docs/API_CONTRACTS.md).
+// must never silently change the API (README.md, section 6).
 
 func profileFromRow(row store.Profile) (Profile, error) {
 	habits := map[string]string{}

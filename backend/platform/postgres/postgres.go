@@ -19,7 +19,7 @@ type Config struct {
 	// Application is reported to PostgreSQL as application_name.
 	Application string
 	// MaxConns bounds the pool. The sum over all replicas of all services must
-	// stay below the server max_connections (see docs/SCALING_PLAN.md).
+	// stay below the server max_connections (see README.md, section 9).
 	MaxConns int
 	// StatementTimeout aborts any single statement that runs longer.
 	StatementTimeout time.Duration
@@ -46,7 +46,7 @@ func NewPool(ctx context.Context, cfg Config) (*pgxpool.Pool, error) {
 	params["application_name"] = cfg.Application
 	params["statement_timeout"] = strconv.FormatInt(cfg.StatementTimeout.Milliseconds(), 10)
 	// A transaction left open by a bug would otherwise hold locks and, in the
-	// Profile database, stall the change feed (ADR-0004).
+	// Profile database, stall the change feed (ADR-0004 in README.md).
 	params["idle_in_transaction_session_timeout"] = strconv.FormatInt((2 * cfg.StatementTimeout).Milliseconds(), 10)
 
 	pool, err := pgxpool.NewWithConfig(ctx, pc)

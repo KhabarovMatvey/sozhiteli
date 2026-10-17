@@ -1,4 +1,4 @@
--- Анкета пользователя (операции getMyProfile и putMyProfile, задачи P-02, P-03).
+-- Анкета пользователя (операции getMyProfile и putMyProfile).
 
 -- name: GetProfile :one
 SELECT *

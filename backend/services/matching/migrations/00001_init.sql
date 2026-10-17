@@ -1,5 +1,5 @@
 -- Схема сервиса Matching. Владелец данных: только сервис Matching.
--- Правила: docs/DATA_OWNERSHIP.md. Механизм проекции: docs/adr/0004.
+-- Правила: README.md, раздел «Данные». Механизм проекции: ADR-0004.
 
 -- +goose Up
 
@@ -45,7 +45,7 @@ CREATE TABLE sync_state (
 INSERT INTO sync_state (source) VALUES ('profile');
 
 -- Факты просмотра карточки кандидата со сравнением: минимальная фиксация
--- событий для измерения гипотезы MVP (docs/adr/0010). Только добавление.
+-- событий для статистики использования (ADR-0010). Только добавление.
 CREATE TABLE candidate_view (
     id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     viewer_id      uuid NOT NULL,

@@ -61,7 +61,7 @@ func (s *Server) viewer(ctx context.Context) (profile, error) {
 }
 
 // ListCandidates returns one page of candidates that pass the viewer's hard
-// conditions, newest profiles first (M-01).
+// conditions, newest profiles first.
 func (s *Server) ListCandidates(ctx context.Context, request ListCandidatesRequestObject) (ListCandidatesResponseObject, error) {
 	after := feedStart
 	if request.Params.Cursor != nil {
@@ -120,7 +120,7 @@ func (s *Server) ListCandidates(ctx context.Context, request ListCandidatesReque
 }
 
 // GetCandidate returns one candidate with the comparison of conditions and
-// habits, and records that the viewer saw it (M-02).
+// habits, and records that the viewer saw it.
 func (s *Server) GetCandidate(ctx context.Context, request GetCandidateRequestObject) (GetCandidateResponseObject, error) {
 	viewer, err := s.viewer(ctx)
 	if err != nil {
@@ -169,7 +169,7 @@ func (s *Server) GetCandidate(ctx context.Context, request GetCandidateRequestOb
 }
 
 // LookupCandidates returns cards for the given users, in the order asked,
-// without applying the hard conditions (M-03). Unknown identifiers and the
+// without applying the hard conditions. Unknown identifiers and the
 // caller's own identifier are silently left out.
 func (s *Server) LookupCandidates(ctx context.Context, request LookupCandidatesRequestObject) (LookupCandidatesResponseObject, error) {
 	if request.Body == nil {

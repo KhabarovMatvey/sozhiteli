@@ -19,7 +19,7 @@ FROM candidate
 WHERE user_id = $1
 `
 
-// Выдача и карточки кандидатов (задачи M-01, M-02, M-03). Только своя база:
+// Выдача и карточки кандидатов. Только своя база:
 // данные анкет - проекция, которую поддерживает internal/projection.
 func (q *Queries) GetCandidate(ctx context.Context, userID uuid.UUID) (Candidate, error) {
 	row := q.db.QueryRow(ctx, getCandidate, userID)
@@ -191,7 +191,7 @@ type RecordCandidateViewParams struct {
 	ComparedCount int16
 }
 
-// Факт просмотра карточки со сравнением: измерение гипотезы (ADR-0010).
+// Факт просмотра карточки со сравнением для статистики (ADR-0010).
 func (q *Queries) RecordCandidateView(ctx context.Context, arg RecordCandidateViewParams) error {
 	_, err := q.db.Exec(ctx, recordCandidateView,
 		arg.ViewerID,

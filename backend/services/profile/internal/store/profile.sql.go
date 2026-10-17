@@ -19,7 +19,7 @@ FROM profile
 WHERE user_id = $1
 `
 
-// Анкета пользователя (операции getMyProfile и putMyProfile, задачи P-02, P-03).
+// Анкета пользователя (операции getMyProfile и putMyProfile).
 func (q *Queries) GetProfile(ctx context.Context, userID uuid.UUID) (Profile, error) {
 	row := q.db.QueryRow(ctx, getProfile, userID)
 	var i Profile

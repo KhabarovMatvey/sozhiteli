@@ -5,7 +5,7 @@ info:
   description: |
     ВНУТРЕННИЙ API сервиса Profile. Не публикуется через edge-прокси и слушает
     отдельный порт. Единственный потребитель - сервис Matching, который строит
-    по этой ленте собственную проекцию кандидатов (ADR-0004).
+    по этой ленте собственную проекцию кандидатов (ADR-0004 в README.md).
 
     Аутентификация - OAuth2 client credentials: access token с audience
     sozhiteli-internal и ролью internal.profile-changes.read.

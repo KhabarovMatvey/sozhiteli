@@ -1,5 +1,5 @@
 // Command matching runs the Matching service: candidate search and habit
-// comparison on its own projection of profiles. See docs/SERVICE_BOUNDARIES.md.
+// comparison on its own projection of profiles. See README.md, section 3.
 package main
 
 import (

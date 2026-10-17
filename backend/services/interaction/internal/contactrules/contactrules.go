@@ -1,4 +1,4 @@
-// Package contactrules checks the format of a contact (backlog task I-01).
+// Package contactrules checks the format of a contact.
 //
 // Values are rejected, not repaired: a leading "@" or a link is an error the
 // user sees, because silently changing a contact could send the counterpart to

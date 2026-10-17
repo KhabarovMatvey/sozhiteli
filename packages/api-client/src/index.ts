@@ -5,7 +5,7 @@
  * Web- и mobile-приложения обращаются к backend ТОЛЬКО через этот пакет: не
  * вызывают fetch напрямую и не описывают типы запросов и ответов вручную.
  * Если нужного endpoint или поля нет - его нет в контракте; изменение контракта
- * согласуется отдельно (docs/CONTRIBUTING.md).
+ * согласуется отдельно (README.md, раздел «API»).
  */
 import createClient, { type Client, type Middleware } from 'openapi-fetch';
 

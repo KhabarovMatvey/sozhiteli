@@ -1,6 +1,6 @@
 // Package changefeed contains the pure logic of the profile change feed: the
 // cursor format and the merge of changed and deleted profiles into one ordered
-// page. The mechanism and its guarantees are described in docs/adr/0004.
+// page. The mechanism and its guarantees are described in README.md (section 4, ADR-0004).
 package changefeed
 
 import (

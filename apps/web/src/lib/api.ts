@@ -8,7 +8,7 @@
  *
  * data и error типизированы по контракту. error - единый формат ошибки
  * (Problem); ветвление - по error.code. Список операций и кодов ошибок:
- * contracts/openapi/*.yaml и docs/API_CONTRACTS.md.
+ * contracts/openapi/*.yaml и README.md, раздел «API».
  */
 import { createApiClients, type ApiClients } from '@sozhiteli/api-client';
 import { useMemo } from 'react';

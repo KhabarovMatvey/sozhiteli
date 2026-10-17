@@ -10,7 +10,7 @@ module.exports = [
   },
   {
     rules: {
-      // Backend вызывается только через типизированный клиент (docs/CONTRIBUTING.md).
+      // Backend вызывается только через типизированный клиент (README.md, раздел «API»).
       'no-restricted-globals': [
         'error',
         {

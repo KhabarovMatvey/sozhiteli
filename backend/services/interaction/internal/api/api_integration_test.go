@@ -127,7 +127,7 @@ func TestImplementationStatusMatchesBehaviour(t *testing.T) {
 	})
 }
 
-// --- I-01: own contact -------------------------------------------------------
+// --- own contact -------------------------------------------------------
 
 func TestOwnContactLifecycle(t *testing.T) {
 	f := newDBFixture(t, 20)
@@ -165,7 +165,7 @@ func TestContactFormatIsChecked(t *testing.T) {
 	openapitest.AssertResponse(t, f.spec, req, rec)
 }
 
-// --- I-02: creating a request ------------------------------------------------
+// --- creating a request ------------------------------------------------
 
 func TestCreateRequestRules(t *testing.T) {
 	f := newDBFixture(t, 20)
@@ -242,7 +242,7 @@ func TestConcurrentOppositeRequestsCreateOne(t *testing.T) {
 	}
 }
 
-// --- I-03 and I-04: lists, answers and the reveal rule ------------------------
+// --- lists, answers and the reveal rule ------------------------
 
 func TestContactIsRevealedOnlyAfterAcceptance(t *testing.T) {
 	f := newDBFixture(t, 20)

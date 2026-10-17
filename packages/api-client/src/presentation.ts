@@ -37,7 +37,7 @@ const problemMessages: Record<string, string> = {
 
 /**
  * Текст ошибки для пользователя. Выбирается только по `code`: `title` и
- * `detail` предназначены разработчику (docs/API_CONTRACTS.md).
+ * `detail` предназначены разработчику (README.md, раздел «API»).
  */
 export function problemMessage(problem: Problem | null | undefined): string {
   if (!problem) return 'Не удалось связаться с сервером. Проверьте подключение.';
@@ -127,7 +127,7 @@ export const AVATAR_TONES = 8;
 
 /**
  * Номер цвета аватара (0 … AVATAR_TONES-1) по id пользователя. Фотографий в
- * MVP нет (docs/MVP_SCOPE.md), поэтому человек узнаётся по инициалам и цвету:
+ * анкете нет, поэтому человек узнаётся по инициалам и цвету:
  * в web и в мобильном приложении у него один и тот же цвет.
  */
 export function avatarTone(userId: string): number {

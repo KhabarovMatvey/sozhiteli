@@ -1,4 +1,4 @@
--- Выдача и карточки кандидатов (задачи M-01, M-02, M-03). Только своя база:
+-- Выдача и карточки кандидатов. Только своя база:
 -- данные анкет - проекция, которую поддерживает internal/projection.
 
 -- name: GetCandidate :one
@@ -33,6 +33,6 @@ FROM candidate
 WHERE user_id = ANY (sqlc.arg(user_ids)::uuid[]);
 
 -- name: RecordCandidateView :exec
--- Факт просмотра карточки со сравнением: измерение гипотезы (ADR-0010).
+-- Факт просмотра карточки со сравнением для статистики (ADR-0010).
 INSERT INTO candidate_view (viewer_id, candidate_id, matched_count, compared_count)
 VALUES (sqlc.arg(viewer_id), sqlc.arg(candidate_id), sqlc.arg(matched_count), sqlc.arg(compared_count));

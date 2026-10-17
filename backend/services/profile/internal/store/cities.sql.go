@@ -27,7 +27,7 @@ FROM city
 ORDER BY name COLLATE "ru-RU-x-icu", region COLLATE "ru-RU-x-icu"
 `
 
-// Справочник городов (операция listCities, задача P-01).
+// Справочник городов (операция listCities).
 // Около 1100 строк, меняется редко: отдаётся целиком, без пагинации.
 // Сортировка по правилам русского алфавита (ICU), а не по байтам.
 func (q *Queries) ListCities(ctx context.Context) ([]City, error) {

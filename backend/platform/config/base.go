@@ -4,7 +4,7 @@ import "time"
 
 // Base is the configuration every service needs. A service embeds it in its
 // own Config and adds what only it needs. Variables are documented in
-// docs/ENGINEERING_RULES.md and .env.example.
+// README.md (section 12, service configuration) and .env.example.
 type Base struct {
 	// HTTPAddr is the listen address of the public API (HTTP_ADDR).
 	HTTPAddr string

@@ -25,4 +25,4 @@ compose exec -T keycloak /opt/keycloak/bin/kcadm.sh update realms/master \
     -s 'attributes.frontendUrl=http://localhost:8081/id' \
     -s bruteForceProtected=true
 
-echo "Готово. Консоль: SSH-туннель (README.md) и http://localhost:8081/id/admin/"
+echo "Готово. Консоль: SSH-туннель (README.md, «Размещение на сервере») и http://localhost:8081/id/admin/"

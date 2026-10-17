@@ -1,11 +1,7 @@
 // Package questionnaire holds the definition of the household habits
 // questionnaire.
 //
-// The definition is product content, not code structure: every question exists
-// because the interviews showed a matching disagreement or a question people
-// had to ask each candidate again. The evidence for each question is recorded
-// in docs/FEATURE_JUSTIFICATION.md (section "Анкета бытовых привычек") and
-// referenced below by its evidence code.
+// The definition is product content, not code structure.
 //
 // Changing the definition:
 //   - adding, removing or rewording a question or an option creates a NEW
@@ -45,7 +41,6 @@ var v1 = Definition{
 	Version: 1,
 	Questions: []Question{
 		{
-			// Evidence: E-HAB-SMOKING.
 			Code:  "smoking",
 			Title: "Курение",
 			Options: []Option{
@@ -55,7 +50,6 @@ var v1 = Definition{
 			},
 		},
 		{
-			// Evidence: E-HAB-PETS.
 			Code:  "pets",
 			Title: "Домашние животные",
 			Options: []Option{
@@ -64,7 +58,6 @@ var v1 = Definition{
 			},
 		},
 		{
-			// Evidence: E-HAB-DISHES.
 			Code:  "dishes",
 			Title: "Когда мою посуду",
 			Options: []Option{
@@ -74,7 +67,6 @@ var v1 = Definition{
 			},
 		},
 		{
-			// Evidence: E-HAB-CLEANING.
 			Code:  "cleaning",
 			Title: "Уборка общих зон",
 			Options: []Option{
@@ -83,7 +75,6 @@ var v1 = Definition{
 			},
 		},
 		{
-			// Evidence: E-HAB-GUESTS.
 			Code:  "guests",
 			Title: "Гости",
 			Options: []Option{
@@ -93,7 +84,6 @@ var v1 = Definition{
 			},
 		},
 		{
-			// Evidence: E-HAB-SLEEP.
 			Code:  "sleep",
 			Title: "Когда обычно ложусь спать",
 			Options: []Option{
@@ -103,7 +93,6 @@ var v1 = Definition{
 			},
 		},
 		{
-			// Evidence: E-HAB-PURCHASES.
 			Code:  "shared_purchases",
 			Title: "Бытовые расходники: средства для уборки, губки, бумага",
 			Options: []Option{
@@ -112,7 +101,6 @@ var v1 = Definition{
 			},
 		},
 		{
-			// Evidence: E-HAB-SOCIAL.
 			Code:  "socializing",
 			Title: "Чего жду от общения с соседом",
 			Options: []Option{

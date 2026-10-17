@@ -1,5 +1,5 @@
 // Command interaction runs the Interaction service: the owner of private
-// contacts and contact requests. See docs/SERVICE_BOUNDARIES.md.
+// contacts and contact requests. See README.md, section 3.
 package main
 
 import (

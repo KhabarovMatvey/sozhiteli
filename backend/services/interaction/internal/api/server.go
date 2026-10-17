@@ -21,7 +21,7 @@ import (
 // Server implements the public Interaction API (StrictServerInterface,
 // generated from contracts/openapi/interaction.v1.yaml).
 //
-// The contact reveal rule (docs/adr/0005) is enforced here and only here:
+// The contact reveal rule (ADR-0005 in README.md) is enforced here and only here:
 // another person's contact is returned only inside a contact request with
 // status accepted, and only to its two participants. Contact values are never
 // logged.
@@ -55,7 +55,7 @@ var (
 	errRequestNotFound = problem.NotFound("contact_request_not_found", "no such contact request")
 )
 
-// GetMyContact returns the caller's own contact (I-01).
+// GetMyContact returns the caller's own contact.
 func (s *Server) GetMyContact(ctx context.Context, _ GetMyContactRequestObject) (GetMyContactResponseObject, error) {
 	userID, err := auth.UserID(ctx)
 	if err != nil {
@@ -71,7 +71,7 @@ func (s *Server) GetMyContact(ctx context.Context, _ GetMyContactRequestObject) 
 	return GetMyContact200JSONResponse{Kind: ContactKind(row.Kind), Value: row.Value}, nil
 }
 
-// PutMyContact sets or replaces the caller's own contact (I-01).
+// PutMyContact sets or replaces the caller's own contact.
 func (s *Server) PutMyContact(ctx context.Context, request PutMyContactRequestObject) (PutMyContactResponseObject, error) {
 	userID, err := auth.UserID(ctx)
 	if err != nil {
@@ -99,8 +99,7 @@ func (s *Server) PutMyContact(ctx context.Context, request PutMyContactRequestOb
 	return PutMyContact200JSONResponse{Kind: ContactKind(row.Kind), Value: row.Value}, nil
 }
 
-// CreateContactRequest sends a contact exchange request (I-02). This is the
-// end point of the MVP experiment.
+// CreateContactRequest sends a contact exchange request.
 func (s *Server) CreateContactRequest(ctx context.Context, request CreateContactRequestRequestObject) (CreateContactRequestResponseObject, error) {
 	senderID, err := auth.UserID(ctx)
 	if err != nil {
@@ -165,7 +164,7 @@ func (s *Server) CreateContactRequest(ctx context.Context, request CreateContact
 }
 
 // ListContactRequests lists the caller's incoming or outgoing requests, newest
-// first (I-03). The counterpart's contact is present only in accepted ones.
+// first. The counterpart's contact is present only in accepted ones.
 func (s *Server) ListContactRequests(ctx context.Context, request ListContactRequestsRequestObject) (ListContactRequestsResponseObject, error) {
 	userID, err := auth.UserID(ctx)
 	if err != nil {
@@ -229,7 +228,7 @@ func (s *Server) ListContactRequests(ctx context.Context, request ListContactReq
 }
 
 // AcceptContactRequest accepts an incoming request: both participants see
-// each other's contact from now on (I-04).
+// each other's contact from now on.
 func (s *Server) AcceptContactRequest(ctx context.Context, request AcceptContactRequestRequestObject) (AcceptContactRequestResponseObject, error) {
 	result, err := s.respond(ctx, request.RequestId, Accepted)
 	if err != nil {
@@ -238,8 +237,7 @@ func (s *Server) AcceptContactRequest(ctx context.Context, request AcceptContact
 	return AcceptContactRequest200JSONResponse(result), nil
 }
 
-// DeclineContactRequest declines an incoming request; no contact is revealed
-// (I-04).
+// DeclineContactRequest declines an incoming request; no contact is revealed.
 func (s *Server) DeclineContactRequest(ctx context.Context, request DeclineContactRequestRequestObject) (DeclineContactRequestResponseObject, error) {
 	result, err := s.respond(ctx, request.RequestId, Declined)
 	if err != nil {

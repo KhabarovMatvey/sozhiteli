@@ -1,5 +1,5 @@
 // Command profile runs the Profile service: the owner of user profiles and
-// questionnaire answers. See docs/SERVICE_BOUNDARIES.md.
+// questionnaire answers. See README.md, section 3.
 package main
 
 import (

@@ -29,7 +29,7 @@ FROM contact
 WHERE user_id = $1
 `
 
-// Собственный контакт пользователя (задача I-01). Значения контактов не
+// Собственный контакт пользователя. Значения контактов не
 // попадают ни в логи, ни в тексты ошибок.
 func (q *Queries) GetContact(ctx context.Context, userID uuid.UUID) (Contact, error) {
 	row := q.db.QueryRow(ctx, getContact, userID)

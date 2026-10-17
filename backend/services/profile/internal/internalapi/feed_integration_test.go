@@ -306,7 +306,7 @@ func TestFeedRejectsInvalidParameters(t *testing.T) {
 // awaitFeedHorizon waits until every change already written to this database
 // is below the feed horizon. The horizon is shared by the whole PostgreSQL
 // server: a transaction of a test running in parallel elsewhere holds it back
-// for a moment. The feed is late then, never lossy (docs/adr/0004), so a test
+// for a moment. The feed is late then, never lossy (ADR-0004 in README.md), so a test
 // that reads right after a write must wait for it instead of failing.
 func awaitFeedHorizon(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()

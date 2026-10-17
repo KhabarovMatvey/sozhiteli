@@ -2,7 +2,7 @@
 //
 // Matching never reads the Profile database and never calls Profile while
 // serving a user request. Instead, a background Syncer polls the Profile
-// change feed and applies it to the local candidate table (docs/adr/0004).
+// change feed and applies it to the local candidate table (ADR-0004 in README.md).
 // When Profile is unavailable the copy simply stops being refreshed; candidate
 // search keeps working on the data already synchronised.
 package projection

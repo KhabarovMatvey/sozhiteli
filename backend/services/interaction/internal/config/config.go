@@ -11,7 +11,7 @@ type Config struct {
 
 	// ContactRequestDailyLimit is how many new contact requests one user may
 	// create per 24 hours (CONTACT_REQUEST_DAILY_LIMIT). It limits abuse of
-	// the most sensitive operation of the system (docs/SECURITY.md).
+	// the most sensitive operation of the system (README.md, section 7).
 	ContactRequestDailyLimit int
 }
 

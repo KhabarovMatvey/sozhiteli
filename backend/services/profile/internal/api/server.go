@@ -58,7 +58,7 @@ func (s *Server) GetQuestionnaire(_ context.Context, _ GetQuestionnaireRequestOb
 	return GetQuestionnaire200JSONResponse{Version: def.Version, Questions: questions}, nil
 }
 
-// ListCities returns the cities where the search is available (P-01).
+// ListCities returns the cities where the search is available.
 func (s *Server) ListCities(ctx context.Context, _ ListCitiesRequestObject) (ListCitiesResponseObject, error) {
 	rows, err := s.queries.ListCities(ctx)
 	if err != nil {
@@ -71,7 +71,7 @@ func (s *Server) ListCities(ctx context.Context, _ ListCitiesRequestObject) (Lis
 	return ListCities200JSONResponse{Items: items}, nil
 }
 
-// GetMyProfile returns the profile of the caller (P-02).
+// GetMyProfile returns the profile of the caller.
 func (s *Server) GetMyProfile(ctx context.Context, _ GetMyProfileRequestObject) (GetMyProfileResponseObject, error) {
 	userID, err := auth.UserID(ctx)
 	if err != nil {
@@ -91,7 +91,7 @@ func (s *Server) GetMyProfile(ctx context.Context, _ GetMyProfileRequestObject) 
 	return GetMyProfile200JSONResponse(profile), nil
 }
 
-// PutMyProfile creates or fully replaces the profile of the caller (P-03).
+// PutMyProfile creates or fully replaces the profile of the caller.
 // The change reaches the profile change feed through database triggers.
 func (s *Server) PutMyProfile(ctx context.Context, request PutMyProfileRequestObject) (PutMyProfileResponseObject, error) {
 	userID, err := auth.UserID(ctx)

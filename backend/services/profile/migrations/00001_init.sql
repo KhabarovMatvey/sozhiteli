@@ -1,10 +1,10 @@
 -- Схема сервиса Profile. Владелец данных: только сервис Profile.
--- Правила: docs/DATA_OWNERSHIP.md. Механизм ленты изменений: docs/adr/0004.
+-- Правила: README.md, раздел «Данные». Механизм ленты изменений: ADR-0004.
 
 -- +goose Up
 
 -- Справочник городов, в которых доступен поиск. Наполняется отдельной
--- миграцией после решения владельца продукта (docs/MVP_SCOPE.md, вопрос Q-1).
+-- миграцией (00002_cities.sql).
 CREATE TABLE city (
     id   smallint PRIMARY KEY,
     name text NOT NULL UNIQUE CHECK (char_length(name) BETWEEN 2 AND 80)

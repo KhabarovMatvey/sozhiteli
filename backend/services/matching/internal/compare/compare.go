@@ -1,9 +1,8 @@
 // Package compare holds the comparison of two profiles: the hard conditions
 // that decide whether a candidate is shown at all, and the household habits
-// whose matches and differences are the core of the MVP hypothesis
-// (docs/MVP_SCOPE.md, feature F5).
+// whose matches and differences are shown on the candidate card.
 //
-// Comparison is deliberately simple (ADR-0011): two answers either have the
+// Comparison is deliberately simple (ADR-0011 in README.md): two answers either have the
 // same option code or not. There are no weights, scores or rankings.
 package compare
 

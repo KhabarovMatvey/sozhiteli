@@ -9,7 +9,7 @@ info:
     Profile НЕ хранит контакты (см. Interaction API) и НЕ отдаёт чужие анкеты
     (карточки кандидатов отдаёт Matching API).
 
-    Правила контракта: docs/API_CONTRACTS.md.
+    Правила контракта: README.md, раздел «API».
 servers:
   - url: http://localhost:8080/api/profile
     description: Локальная среда (edge-прокси из deploy/compose)
