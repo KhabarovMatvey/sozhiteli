@@ -660,11 +660,20 @@ Index Scan по `candidate_feed_idx`, 0,3 мс. Два экземпляра Matc
 шкала совпадений — элемент `<meter>`. Production-сборка — автономный образ (`apps/web/Dockerfile`),
 адреса API и провайдера входа задаются при сборке.
 
-**Mobile** (`apps/mobile`, Expo Router): вход — `expo-auth-session` в системном браузере, схема
-`sozhiteli://`; те же экраны вкладками; элементы интерфейса — `src/components/ui.tsx`, цвета —
-только из `useTheme()` (светлая и тёмная тема). Для входа нужен development build, а не Expo Go.
-На устройстве приложение не проверялось; проверены типы, линтер, `expo-doctor` и сборка бандлов
-Android и web.
+**Mobile** (`apps/mobile`, Expo Router): вход — Authorization Code + PKCE (`expo-auth-session`),
+страница Keycloak открывается во встроенном окне приложения (`src/components/login-webview.tsx`,
+`react-native-webview`, без сохранения cookie), которое само перехватывает возврат на
+`sozhiteli://auth/callback`: возврат из внешнего браузера по ссылке на части телефонов не
+срабатывал. Пароль приложение не видит, регистрация и сброс пароля — те же страницы Keycloak. В
+веб-режиме — всплывающее окно браузера. Те же экраны вкладками; элементы интерфейса —
+`src/components/ui.tsx`, цвета — только из `useTheme()` (светлая и тёмная тема). Для входа нужна
+собранная сборка (APK), а не Expo Go.
+
+Сборка APK (Windows): путь проекта с кириллицей ломает нативную сборку Android, поэтому
+`apps/mobile` вместе с `node_modules` и `packages` копируют в путь латиницей, задают
+`EXPO_PUBLIC_*` адреса сервера, выполняют `npx expo prebuild --platform android` и
+`gradlew assembleRelease`; в сгенерированном `settings.gradle` имя проекта — латиницей. Папка
+`apps/mobile/android/` генерируется и в git не хранится.
 
 Правила для обоих: backend — только через `useApi()`; состояние входа — только через `useAuth()`;
 переменные окружения — только в `src/lib/config.ts`; тексты ошибок — по `error.code`.
