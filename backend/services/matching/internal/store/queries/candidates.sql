@@ -22,6 +22,23 @@ WHERE c.search_status = 'searching'
   AND c.move_in_to >= sqlc.arg(move_in_from)
   AND (sqlc.arg(viewer_roommate_gender)::text = 'any' OR c.gender = sqlc.arg(viewer_gender)::text)
   AND (c.roommate_gender = 'any' OR c.gender = sqlc.arg(viewer_gender)::text)
+  -- Сценарии: pair - pair; room_offer - pair, готовый заехать в снятую квартиру.
+  AND ((sqlc.arg(viewer_scenario)::text = 'pair' AND c.scenario = 'pair')
+    OR (sqlc.arg(viewer_scenario)::text = 'room_offer' AND c.scenario = 'pair' AND c.accepts_room)
+    OR (sqlc.arg(viewer_scenario)::text = 'pair' AND sqlc.arg(viewer_accepts_room)::boolean AND c.scenario = 'room_offer'))
+  -- Обязательные вопросы обеих сторон: разный ответ исключает кандидата,
+  -- отсутствие ответа - нет.
+  AND NOT EXISTS (SELECT 1
+                  FROM unnest(sqlc.arg(viewer_required)::text[]) AS q(code)
+                  WHERE c.habits ? q.code
+                    AND sqlc.arg(viewer_habits)::jsonb ? q.code
+                    AND c.habits ->> q.code <> sqlc.arg(viewer_habits)::jsonb ->> q.code)
+  AND NOT EXISTS (SELECT 1
+                  FROM unnest(c.required_habits) AS q(code)
+                  WHERE c.habits ? q.code
+                    AND sqlc.arg(viewer_habits)::jsonb ? q.code
+                    AND c.habits ->> q.code <> sqlc.arg(viewer_habits)::jsonb ->> q.code)
+  AND (sqlc.narg(district)::text IS NULL OR strpos(lower(c.districts), lower(sqlc.narg(district)::text)) > 0)
   AND (c.profile_updated_at, c.user_id) < (sqlc.arg(after_updated_at)::timestamptz, sqlc.arg(after_user_id)::uuid)
 ORDER BY c.profile_updated_at DESC, c.user_id DESC
 LIMIT sqlc.arg(page_size);

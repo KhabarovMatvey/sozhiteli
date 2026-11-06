@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"sozhiteli.internal/profile/internal/profilerules"
@@ -34,6 +35,12 @@ func profileFromRow(row store.Profile) (Profile, error) {
 		QuestionnaireVersion: row.QuestionnaireVersion,
 		Habits:               habits,
 		SearchStatus:         SearchStatus(row.SearchStatus),
+		Scenario:             Scenario(row.Scenario),
+		AcceptsRoom:          row.AcceptsRoom,
+		UtilitiesRub:         optionalInt(row.UtilitiesRub),
+		DepositRub:           optionalInt(row.DepositRub),
+		PlaceNote:            row.PlaceNote,
+		RequiredHabits:       row.RequiredHabits,
 		CreatedAt:            row.CreatedAt,
 		UpdatedAt:            row.UpdatedAt,
 	}, nil
@@ -51,5 +58,33 @@ func rulesInput(body ProfileInput) profilerules.Input {
 		MoveInTo:             body.MoveInTo.Time,
 		QuestionnaireVersion: body.QuestionnaireVersion,
 		Habits:               body.Habits,
+		Scenario:             string(valueOr(body.Scenario, Pair)),
+		AcceptsRoom:          valueOr(body.AcceptsRoom, false),
+		UtilitiesRub:         body.UtilitiesRub,
+		DepositRub:           body.DepositRub,
+		PlaceNote:            valueOr(body.PlaceNote, ""),
+		RequiredHabits:       valueOr(body.RequiredHabits, nil),
 	}
+}
+
+func valueOr[T any](p *T, fallback T) T {
+	if p == nil {
+		return fallback
+	}
+	return *p
+}
+
+func optionalInt(v pgtype.Int4) *int32 {
+	if !v.Valid {
+		return nil
+	}
+	n := v.Int32
+	return &n
+}
+
+func nullableInt(v *int32) pgtype.Int4 {
+	if v == nil {
+		return pgtype.Int4{}
+	}
+	return pgtype.Int4{Int32: *v, Valid: true}
 }

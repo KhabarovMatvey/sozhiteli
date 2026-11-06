@@ -149,6 +149,12 @@ func (s *Server) saveProfile(ctx context.Context, userID uuid.UUID, body Profile
 		QuestionnaireVersion: in.QuestionnaireVersion,
 		Habits:               habits,
 		SearchStatus:         string(body.SearchStatus),
+		Scenario:             in.Scenario,
+		AcceptsRoom:          in.AcceptsRoom,
+		UtilitiesRub:         nullableInt(in.UtilitiesRub),
+		DepositRub:           nullableInt(in.DepositRub),
+		PlaceNote:            in.PlaceNote,
+		RequiredHabits:       in.RequiredHabits,
 	})
 	if isForeignKeyViolation(err) {
 		// The city was removed between the check and the write.

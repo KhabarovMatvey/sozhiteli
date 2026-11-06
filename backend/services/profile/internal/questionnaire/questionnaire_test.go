@@ -95,3 +95,32 @@ func TestCheckReportsEveryProblemInStableOrder(t *testing.T) {
 		}
 	}
 }
+
+// A new version may add questions but must keep every v1 question and option
+// code with the same meaning: Matching compares answers across versions.
+func TestV2KeepsV1Codes(t *testing.T) {
+	current := map[string]map[string]bool{}
+	for _, q := range Current().Questions {
+		current[q.Code] = map[string]bool{}
+		for _, o := range q.Options {
+			current[q.Code][o.Code] = true
+		}
+	}
+	for _, q := range v1.Questions {
+		options, ok := current[q.Code]
+		if !ok {
+			t.Errorf("v1 question %q is missing in the current version", q.Code)
+			continue
+		}
+		for _, o := range q.Options {
+			if !options[o.Code] {
+				t.Errorf("v1 option %s/%s is missing in the current version", q.Code, o.Code)
+			}
+		}
+	}
+	for _, code := range []string{"noise", "remote_work", "personal_space"} {
+		if _, ok := current[code]; !ok {
+			t.Errorf("question %q of hypothesis H3 is missing", code)
+		}
+	}
+}

@@ -14,6 +14,7 @@ import {
   Panel,
   Screen,
   T,
+  Toggle,
   useTheme,
 } from '@/components/ui';
 import { useApi } from '@/lib/api';
@@ -49,6 +50,12 @@ interface Draft {
   roommate_gender: ProfileInput['roommate_gender'];
   habits: Record<string, string>;
   search_status: ProfileInput['search_status'];
+  scenario: NonNullable<ProfileInput['scenario']>;
+  accepts_room: boolean;
+  utilities_rub: string;
+  deposit_rub: string;
+  place_note: string;
+  required_habits: string[];
 }
 
 function draftFrom(p: Profile | null): Draft {
@@ -67,6 +74,12 @@ function draftFrom(p: Profile | null): Draft {
       roommate_gender: 'any',
       habits: {},
       search_status: 'searching',
+      scenario: 'pair',
+      accepts_room: false,
+      utilities_rub: '',
+      deposit_rub: '',
+      place_note: '',
+      required_habits: [],
     };
   }
   return {
@@ -83,6 +96,12 @@ function draftFrom(p: Profile | null): Draft {
     roommate_gender: p.roommate_gender,
     habits: p.habits,
     search_status: p.search_status,
+    scenario: p.scenario,
+    accepts_room: p.accepts_room,
+    utilities_rub: p.utilities_rub === undefined ? '' : String(p.utilities_rub),
+    deposit_rub: p.deposit_rub === undefined ? '' : String(p.deposit_rub),
+    place_note: p.place_note,
+    required_habits: p.required_habits,
   };
 }
 
@@ -190,6 +209,7 @@ function ProfileForm({
       return;
 
     setSaving(true);
+    const offer = draft.scenario === 'room_offer';
     const { data, error } = await api.profile.PUT('/v1/me/profile', {
       body: {
         display_name: draft.display_name.trim(),
@@ -199,13 +219,25 @@ function ProfileForm({
         city_id: draft.city_id,
         districts: draft.districts.trim(),
         budget_min_rub: Number(draft.budget_min_rub),
-        budget_max_rub: Number(draft.budget_max_rub),
+        budget_max_rub: Number(offer ? draft.budget_min_rub : draft.budget_max_rub),
         move_in_from: from,
         move_in_to: to,
         roommate_gender: draft.roommate_gender,
         questionnaire_version: questionnaire.version,
         habits: draft.habits,
         search_status: draft.search_status,
+        scenario: draft.scenario,
+        accepts_room: !offer && draft.accepts_room,
+        required_habits: draft.required_habits.filter((code) =>
+          questionnaire.questions.some((q) => q.code === code),
+        ),
+        ...(offer
+          ? {
+              utilities_rub: Number(draft.utilities_rub),
+              deposit_rub: Number(draft.deposit_rub),
+              place_note: draft.place_note.trim(),
+            }
+          : {}),
       },
     });
     setSaving(false);
@@ -214,9 +246,39 @@ function ProfileForm({
   }
 
   const answered = questionnaire.questions.filter((q) => draft.habits[q.code]).length;
+  const offer = draft.scenario === 'room_offer';
+  const toggleRequired = (code: string) =>
+    set(
+      'required_habits',
+      draft.required_habits.includes(code)
+        ? draft.required_habits.filter((c) => c !== code)
+        : [...draft.required_habits, code],
+    );
 
   return (
     <>
+      <Panel title="Что вы ищете">
+        <Choice
+          options={[
+            ['pair', 'Соседа, чтобы вместе снять квартиру'],
+            ['room_offer', 'Жильца на свободное место в моей квартире'],
+          ]}
+          value={draft.scenario}
+          onChange={(v) => set('scenario', v)}
+        />
+        {offer ? (
+          <T muted size={13}>
+            Вы один раз опишете место, расходы и уклад квартиры — кандидаты увидят их до первого сообщения.
+          </T>
+        ) : (
+          <Toggle
+            label="Готов(а) заехать на свободное место в уже снятой квартире"
+            value={draft.accepts_room}
+            onChange={(v) => set('accepts_room', v)}
+          />
+        )}
+      </Panel>
+
       <Panel title="О себе">
         <Field
           label="Имя"
@@ -253,7 +315,7 @@ function ProfileForm({
         />
       </Panel>
 
-      <Panel title="Условия поиска">
+      <Panel title={offer ? 'Свободное место' : 'Условия поиска'}>
         <CityPicker
           cities={cities}
           value={draft.city_id}
@@ -261,30 +323,67 @@ function ProfileForm({
           error={errors.city_id}
         />
         <Field
-          label="Подходящие районы (необязательно)"
+          label={offer ? 'Район (необязательно)' : 'Подходящие районы (необязательно)'}
           value={draft.districts}
           onChangeText={(v) => set('districts', v)}
           maxLength={200}
           error={errors.districts}
         />
-        <T muted size={13}>
-          Бюджет — ваша доля аренды в месяц, без коммунальных платежей, ₽
-        </T>
+        {offer ? (
+          <>
+            <Field
+              label="Аренда за место, ₽ в месяц"
+              value={draft.budget_min_rub}
+              onChangeText={(v) => set('budget_min_rub', v.replace(/\D/g, ''))}
+              keyboardType="number-pad"
+              error={errors.budget_max_rub ?? errors.budget_min_rub}
+            />
+            <Field
+              label="Коммунальные на человека, ₽ в месяц (примерно)"
+              value={draft.utilities_rub}
+              onChangeText={(v) => set('utilities_rub', v.replace(/\D/g, ''))}
+              keyboardType="number-pad"
+              error={errors.utilities_rub}
+            />
+            <Field
+              label="Залог при заселении, ₽"
+              value={draft.deposit_rub}
+              onChangeText={(v) => set('deposit_rub', v.replace(/\D/g, ''))}
+              keyboardType="number-pad"
+              error={errors.deposit_rub}
+            />
+            <Field
+              label="О квартире и месте (необязательно)"
+              placeholder="Например: комната 12 м², две соседки, 7 минут до метро"
+              value={draft.place_note}
+              onChangeText={(v) => set('place_note', v)}
+              maxLength={500}
+              multiline
+              error={errors.place_note}
+            />
+          </>
+        ) : (
+          <>
+            <T muted size={13}>
+              Бюджет — ваша доля аренды в месяц, без коммунальных платежей, ₽
+            </T>
+            <Field
+              label="Бюджет от"
+              value={draft.budget_min_rub}
+              onChangeText={(v) => set('budget_min_rub', v.replace(/\D/g, ''))}
+              keyboardType="number-pad"
+            />
+            <Field
+              label="Бюджет до"
+              value={draft.budget_max_rub}
+              onChangeText={(v) => set('budget_max_rub', v.replace(/\D/g, ''))}
+              keyboardType="number-pad"
+              error={errors.budget_max_rub ?? errors.budget_min_rub}
+            />
+          </>
+        )}
         <Field
-          label="Бюджет от"
-          value={draft.budget_min_rub}
-          onChangeText={(v) => set('budget_min_rub', v.replace(/\D/g, ''))}
-          keyboardType="number-pad"
-        />
-        <Field
-          label="Бюджет до"
-          value={draft.budget_max_rub}
-          onChangeText={(v) => set('budget_max_rub', v.replace(/\D/g, ''))}
-          keyboardType="number-pad"
-          error={errors.budget_max_rub ?? errors.budget_min_rub}
-        />
-        <Field
-          label="Готов(а) заселиться с"
+          label={offer ? 'Место свободно с' : 'Готов(а) заселиться с'}
           placeholder="ДД.ММ.ГГГГ"
           value={draft.move_in_from}
           onChangeText={(v) => set('move_in_from', v)}
@@ -311,7 +410,7 @@ function ProfileForm({
       </Panel>
 
       <Panel
-        title="Бытовые привычки"
+        title={offer ? 'Уклад квартиры и ваши привычки' : 'Бытовые привычки'}
         right={
           <Chip tone={answered === questionnaire.questions.length ? 'good' : 'info'}>
             {answered} из {questionnaire.questions.length}
@@ -320,6 +419,7 @@ function ProfileForm({
       >
         <T muted size={13}>
           Ответы увидят другие участники рядом со своими: так проще заранее понять, где вы совпадаете.
+          «Обязательно» — не готовы жить с тем, кто ответил иначе: такие люди не попадут в выдачу.
         </T>
         {questionnaire.questions.map((q) => (
           <Choice
@@ -331,19 +431,33 @@ function ProfileForm({
             error={errors[`habits.${q.code}`]}
           />
         ))}
+        <T bold>Обязательно для меня</T>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {questionnaire.questions.map((q) => (
+            <Toggle
+              key={q.code}
+              label={q.title}
+              value={draft.required_habits.includes(q.code)}
+              onChange={() => toggleRequired(q.code)}
+            />
+          ))}
+        </View>
+        {errors.required_habits && <T size={13}>{errors.required_habits}</T>}
       </Panel>
 
       <Panel title="Показывать анкету">
         <Choice
           options={[
-            ['searching', 'Да, ищу соседа'],
+            ['searching', offer ? 'Да, ищу жильца' : 'Да, ищу соседа'],
             ['paused', 'Нет, поиск на паузе'],
+            ['found', 'Сосед найден'],
           ]}
           value={draft.search_status}
           onChange={(v) => set('search_status', v)}
         />
         <T muted size={13}>
-          На паузе вашу анкету никто не видит, но вы по-прежнему можете смотреть кандидатов.
+          На паузе вашу анкету никто не видит, но вы по-прежнему можете смотреть кандидатов. Когда
+          договоритесь о заселении, отметьте «Сосед найден»: анкета скроется, а поиск можно будет возобновить.
         </T>
       </Panel>
 

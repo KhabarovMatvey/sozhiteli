@@ -27,7 +27,21 @@ type Conditions struct {
 	BudgetMaxRub   int32
 	MoveInFrom     time.Time
 	MoveInTo       time.Time
+	// Scenario is pair or room_offer; AcceptsRoom means a pair also wants
+	// free places in rented flats.
+	Scenario    string
+	AcceptsRoom bool
+	// Habits are the answers; Required are the question codes whose answer
+	// must be the same.
+	Habits   map[string]string
+	Required []string
 }
+
+// Scenarios of a profile.
+const (
+	ScenarioPair      = "pair"
+	ScenarioRoomOffer = "room_offer"
+)
 
 // ConditionsResult tells which hard conditions two profiles share.
 type ConditionsResult struct {
@@ -35,6 +49,8 @@ type ConditionsResult struct {
 	BudgetOverlap    bool
 	MoveInOverlap    bool
 	RoommateGenderOK bool
+	ScenarioOK       bool
+	RequiredHabitsOK bool
 }
 
 // CompareConditions compares the viewer's hard conditions with a candidate's.
@@ -46,7 +62,39 @@ func CompareConditions(viewer, candidate Conditions) ConditionsResult {
 		MoveInOverlap: !candidate.MoveInFrom.After(viewer.MoveInTo) && !candidate.MoveInTo.Before(viewer.MoveInFrom),
 		RoommateGenderOK: (viewer.RoommateGender == "any" || candidate.Gender == viewer.Gender) &&
 			(candidate.RoommateGender == "any" || candidate.Gender == viewer.Gender),
+		ScenarioOK:       ScenariosCompatible(viewer, candidate),
+		RequiredHabitsOK: requiredHold(viewer.Required, viewer.Habits, candidate.Habits) && requiredHold(candidate.Required, candidate.Habits, viewer.Habits),
 	}
+}
+
+// ScenariosCompatible tells whether two profiles may meet: two people who rent
+// together, or a free place and a person ready to move into a rented flat.
+// Two free places never match.
+func ScenariosCompatible(a, b Conditions) bool {
+	switch {
+	case a.Scenario == ScenarioPair && b.Scenario == ScenarioPair:
+		return true
+	case a.Scenario == ScenarioRoomOffer && b.Scenario == ScenarioPair:
+		return b.AcceptsRoom
+	case a.Scenario == ScenarioPair && b.Scenario == ScenarioRoomOffer:
+		return a.AcceptsRoom
+	default:
+		return false
+	}
+}
+
+// requiredHold reports whether every required question answered by both
+// sides has the same answer. A question one side did not answer does not
+// exclude anyone: the difference is unknown and can be discussed.
+func requiredHold(required []string, owner, other map[string]string) bool {
+	for _, code := range required {
+		mine, ok1 := owner[code]
+		theirs, ok2 := other[code]
+		if ok1 && ok2 && mine != theirs {
+			return false
+		}
+	}
+	return true
 }
 
 // HabitItem is the comparison of one question.

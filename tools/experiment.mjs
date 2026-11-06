@@ -93,7 +93,7 @@ function validateProfile(profile, field) {
     [],
     field,
   );
-  requireValue(profile.questionnaire_version === 1, `${field}.questionnaire_version`);
+  requireValue([1, 2].includes(profile.questionnaire_version), `${field}.questionnaire_version`);
   for (const key of ['city', 'districts']) textValue(profile[key], `${field}.${key}`);
   for (const key of ['budget_min_rub', 'budget_max_rub']) {
     requireValue(Number.isSafeInteger(profile[key]) && profile[key] >= 0, `${field}.${key}`);

@@ -18,6 +18,8 @@ func viewer() Conditions {
 		CityID: 1, Gender: "male", RoommateGender: "any",
 		BudgetMinRub: 10000, BudgetMaxRub: 15000,
 		MoveInFrom: day("2027-08-20"), MoveInTo: day("2027-09-01"),
+		Scenario: ScenarioPair,
+		Habits:   map[string]string{"smoking": "no", "noise": "quiet"},
 	}
 }
 
@@ -26,27 +28,47 @@ func TestCompareConditions(t *testing.T) {
 		change func(v, c *Conditions)
 		want   ConditionsResult
 	}{
-		"identical": {func(*Conditions, *Conditions) {}, ConditionsResult{true, true, true, true}},
+		"identical": {func(*Conditions, *Conditions) {}, ConditionsResult{true, true, true, true, true, true}},
 		"other city": {func(_ *Conditions, c *Conditions) { c.CityID = 2 },
-			ConditionsResult{false, true, true, true}},
+			ConditionsResult{false, true, true, true, true, true}},
 		"budget touches at the edge": {func(_ *Conditions, c *Conditions) { c.BudgetMinRub, c.BudgetMaxRub = 15000, 20000 },
-			ConditionsResult{true, true, true, true}},
+			ConditionsResult{true, true, true, true, true, true}},
 		"budget above": {func(_ *Conditions, c *Conditions) { c.BudgetMinRub, c.BudgetMaxRub = 15001, 20000 },
-			ConditionsResult{true, false, true, true}},
+			ConditionsResult{true, false, true, true, true, true}},
 		"budget below": {func(_ *Conditions, c *Conditions) { c.BudgetMinRub, c.BudgetMaxRub = 5000, 9999 },
-			ConditionsResult{true, false, true, true}},
+			ConditionsResult{true, false, true, true, true, true}},
 		"dates touch at the edge": {func(_ *Conditions, c *Conditions) { c.MoveInFrom, c.MoveInTo = day("2027-09-01"), day("2027-10-01") },
-			ConditionsResult{true, true, true, true}},
+			ConditionsResult{true, true, true, true, true, true}},
 		"dates later": {func(_ *Conditions, c *Conditions) { c.MoveInFrom, c.MoveInTo = day("2027-09-02"), day("2027-10-01") },
-			ConditionsResult{true, true, false, true}},
+			ConditionsResult{true, true, false, true, true, true}},
 		"viewer wants same gender, candidate differs": {func(v, c *Conditions) { v.RoommateGender, c.Gender = "same", "female" },
-			ConditionsResult{true, true, true, false}},
+			ConditionsResult{true, true, true, false, true, true}},
 		"candidate wants same gender, viewer differs": {func(_ *Conditions, c *Conditions) { c.Gender, c.RoommateGender = "female", "same" },
-			ConditionsResult{true, true, true, false}},
+			ConditionsResult{true, true, true, false, true, true}},
 		"both any, genders differ": {func(_ *Conditions, c *Conditions) { c.Gender = "female" },
-			ConditionsResult{true, true, true, true}},
+			ConditionsResult{true, true, true, true, true, true}},
 		"both want same, genders equal": {func(v, c *Conditions) { v.RoommateGender, c.RoommateGender = "same", "same" },
-			ConditionsResult{true, true, true, true}},
+			ConditionsResult{true, true, true, true, true, true}},
+		"free place and a pair not ready for it": {func(_ *Conditions, c *Conditions) { c.Scenario = ScenarioRoomOffer },
+			ConditionsResult{true, true, true, true, false, true}},
+		"free place and a pair ready for it": {func(v, c *Conditions) { v.AcceptsRoom, c.Scenario = true, ScenarioRoomOffer },
+			ConditionsResult{true, true, true, true, true, true}},
+		"two free places": {func(v, c *Conditions) { v.Scenario, c.Scenario = ScenarioRoomOffer, ScenarioRoomOffer },
+			ConditionsResult{true, true, true, true, false, true}},
+		"my required answer differs": {func(v, c *Conditions) {
+			v.Required = []string{"noise"}
+			c.Habits = map[string]string{"smoking": "no", "noise": "relaxed"}
+		}, ConditionsResult{true, true, true, true, true, false}},
+		"their required answer differs": {func(v, c *Conditions) {
+			c.Required = []string{"smoking"}
+			c.Habits = map[string]string{"smoking": "at_home", "noise": "quiet"}
+		}, ConditionsResult{true, true, true, true, true, false}},
+		"required question not answered by the candidate": {func(v, c *Conditions) {
+			v.Required = []string{"noise"}
+			c.Habits = map[string]string{"smoking": "no"}
+		}, ConditionsResult{true, true, true, true, true, true}},
+		"required answer is the same": {func(v, c *Conditions) { v.Required, c.Required = []string{"noise"}, []string{"smoking"} },
+			ConditionsResult{true, true, true, true, true, true}},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

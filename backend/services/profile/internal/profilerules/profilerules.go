@@ -28,6 +28,15 @@ const (
 	CodeInPast             = "in_past"
 	CodeUnsupportedVersion = "unsupported_version"
 	CodeUnknownCity        = "unknown_city"
+	CodeRequired           = "required"
+	CodeSingleValue        = "single_value"
+	CodeUnknownQuestion    = "unknown_question"
+)
+
+// Scenarios of a profile (priority Must #1).
+const (
+	ScenarioPair      = "pair"
+	ScenarioRoomOffer = "room_offer"
 )
 
 const (
@@ -47,6 +56,12 @@ type Input struct {
 	MoveInTo             time.Time
 	QuestionnaireVersion int32
 	Habits               map[string]string
+	Scenario             string
+	AcceptsRoom          bool
+	UtilitiesRub         *int32
+	DepositRub           *int32
+	PlaceNote            string
+	RequiredHabits       []string
 }
 
 // Normalize trims the free-text fields. The trimmed values are both checked
@@ -55,6 +70,20 @@ func Normalize(in Input) Input {
 	in.DisplayName = strings.TrimSpace(in.DisplayName)
 	in.Occupation = strings.TrimSpace(in.Occupation)
 	in.Districts = strings.TrimSpace(in.Districts)
+	in.PlaceNote = strings.TrimSpace(in.PlaceNote)
+	if in.Scenario == "" {
+		in.Scenario = ScenarioPair
+	}
+	// Fields of the other scenario are dropped, not rejected: a client that
+	// switches the scenario may still hold values typed for the previous one.
+	if in.Scenario == ScenarioPair {
+		in.UtilitiesRub, in.DepositRub, in.PlaceNote = nil, nil, ""
+	} else {
+		in.AcceptsRoom = false
+	}
+	if in.RequiredHabits == nil {
+		in.RequiredHabits = []string{}
+	}
 	return in
 }
 
@@ -77,6 +106,7 @@ func Validate(in Input, now time.Time, def questionnaire.Definition) []problem.F
 		{name: "display_name", value: in.DisplayName, min: 2, max: 40},
 		{name: "occupation", value: in.Occupation, min: 2, max: 80},
 		{name: "districts", value: in.Districts, min: 0, max: 200},
+		{name: "place_note", value: in.PlaceNote, min: 0, max: 500},
 	} {
 		if n := utf8.RuneCountInString(f.value); n < f.min || n > f.max {
 			add(f.name, CodeOutOfRange, fmt.Sprintf("%s must be %d to %d characters long after trimming", f.name, f.min, f.max))
@@ -96,6 +126,18 @@ func Validate(in Input, now time.Time, def questionnaire.Definition) []problem.F
 	if in.BudgetMaxRub < in.BudgetMinRub {
 		add("budget_max_rub", CodeLessThanMin, "budget_max_rub must not be less than budget_min_rub")
 	}
+	if in.Scenario == ScenarioRoomOffer {
+		// The rent of one place is a single price, not a range.
+		if in.BudgetMaxRub != in.BudgetMinRub {
+			add("budget_max_rub", CodeSingleValue, "for room_offer budget_min_rub and budget_max_rub are the rent of the place and must be equal")
+		}
+		if in.UtilitiesRub == nil {
+			add("utilities_rub", CodeRequired, "utilities_rub is required for room_offer")
+		}
+		if in.DepositRub == nil {
+			add("deposit_rub", CodeRequired, "deposit_rub is required for room_offer")
+		}
+	}
 
 	if in.MoveInTo.Before(in.MoveInFrom) {
 		add("move_in_to", CodeBeforeFrom, "move_in_to must not be earlier than move_in_from")
@@ -114,6 +156,15 @@ func Validate(in Input, now time.Time, def questionnaire.Definition) []problem.F
 	}
 	for _, v := range def.Check(in.Habits) {
 		add("habits."+v.QuestionCode, v.Code, habitMessage(v.Code))
+	}
+	known := make(map[string]bool, len(def.Questions))
+	for _, q := range def.Questions {
+		known[q.Code] = true
+	}
+	for _, code := range in.RequiredHabits {
+		if !known[code] {
+			add("required_habits", CodeUnknownQuestion, "the questionnaire has no question "+code)
+		}
 	}
 	return errs
 }

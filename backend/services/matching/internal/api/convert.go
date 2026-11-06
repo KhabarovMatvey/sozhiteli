@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"sozhiteli.internal/matching/internal/compare"
@@ -37,6 +38,10 @@ func (p profile) conditions() compare.Conditions {
 		BudgetMaxRub:   p.row.BudgetMaxRub,
 		MoveInFrom:     p.row.MoveInFrom,
 		MoveInTo:       p.row.MoveInTo,
+		Scenario:       p.row.Scenario,
+		AcceptsRoom:    p.row.AcceptsRoom,
+		Habits:         p.habits,
+		Required:       p.row.RequiredHabits,
 	}
 }
 
@@ -56,6 +61,11 @@ func card(viewer, candidate profile, now time.Time) CandidateCard {
 		MoveInFrom:   openapi_types.Date{Time: row.MoveInFrom},
 		MoveInTo:     openapi_types.Date{Time: row.MoveInTo},
 		SearchStatus: CandidateCardSearchStatus(row.SearchStatus),
+		Scenario:     CandidateCardScenario(row.Scenario),
+		AcceptsRoom:  row.AcceptsRoom,
+		UtilitiesRub: optionalInt(row.UtilitiesRub),
+		DepositRub:   optionalInt(row.DepositRub),
+		PlaceNote:    row.PlaceNote,
 		Compatibility: Compatibility{
 			MatchedCount:  int32(matched),
 			ComparedCount: int32(compared),
@@ -65,9 +75,17 @@ func card(viewer, candidate profile, now time.Time) CandidateCard {
 
 func habitComparisons(viewer, candidate profile) []HabitComparison {
 	items := compare.CompareHabits(viewer.habits, candidate.habits)
+	mineRequired := set(viewer.row.RequiredHabits)
+	theirsRequired := set(candidate.row.RequiredHabits)
 	out := make([]HabitComparison, 0, len(items))
 	for _, item := range items {
-		hc := HabitComparison{QuestionCode: item.QuestionCode, Result: HabitComparisonResult(item.Result)}
+		byMe, byThem := mineRequired[item.QuestionCode], theirsRequired[item.QuestionCode]
+		hc := HabitComparison{
+			QuestionCode:   item.QuestionCode,
+			Result:         HabitComparisonResult(item.Result),
+			RequiredByMe:   &byMe,
+			RequiredByThem: &byThem,
+		}
 		if item.Mine != "" {
 			hc.MyOption = &item.Mine
 		}
@@ -77,4 +95,20 @@ func habitComparisons(viewer, candidate profile) []HabitComparison {
 		out = append(out, hc)
 	}
 	return out
+}
+
+func set(codes []string) map[string]bool {
+	out := make(map[string]bool, len(codes))
+	for _, c := range codes {
+		out[c] = true
+	}
+	return out
+}
+
+func optionalInt(v pgtype.Int4) *int32 {
+	if !v.Valid {
+		return nil
+	}
+	n := v.Int32
+	return &n
 }

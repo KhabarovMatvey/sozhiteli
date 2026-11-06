@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getFeedHorizon = `-- name: GetFeedHorizon :one
@@ -44,6 +45,12 @@ SELECT user_id,
        questionnaire_version,
        habits,
        search_status,
+       scenario,
+       accepts_room,
+       utilities_rub,
+       deposit_rub,
+       place_note,
+       required_habits,
        updated_at
 FROM profile
 WHERE (feed_version, user_id) > ($1::bigint, $2::uuid)
@@ -76,6 +83,12 @@ type ListChangedProfilesRow struct {
 	QuestionnaireVersion int32
 	Habits               []byte
 	SearchStatus         string
+	Scenario             string
+	AcceptsRoom          bool
+	UtilitiesRub         pgtype.Int4
+	DepositRub           pgtype.Int4
+	PlaceNote            string
+	RequiredHabits       []string
 	UpdatedAt            time.Time
 }
 
@@ -110,6 +123,12 @@ func (q *Queries) ListChangedProfiles(ctx context.Context, arg ListChangedProfil
 			&i.QuestionnaireVersion,
 			&i.Habits,
 			&i.SearchStatus,
+			&i.Scenario,
+			&i.AcceptsRoom,
+			&i.UtilitiesRub,
+			&i.DepositRub,
+			&i.PlaceNote,
+			&i.RequiredHabits,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err

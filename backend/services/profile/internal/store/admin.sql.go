@@ -165,7 +165,7 @@ func (q *Queries) AdminProfileIDs(ctx context.Context, userIds []uuid.UUID) ([]u
 }
 
 const adminSearchProfiles = `-- name: AdminSearchProfiles :many
-SELECT user_id, display_name, birth_year, gender, occupation, city_id, districts, budget_min_rub, budget_max_rub, move_in_from, move_in_to, roommate_gender, questionnaire_version, habits, search_status, created_at, updated_at, feed_version
+SELECT user_id, display_name, birth_year, gender, occupation, city_id, districts, budget_min_rub, budget_max_rub, move_in_from, move_in_to, roommate_gender, questionnaire_version, habits, search_status, created_at, updated_at, feed_version, scenario, accepts_room, utilities_rub, deposit_rub, place_note, required_habits
 FROM profile
 WHERE (NOT $1::boolean OR user_id > $2::uuid)
   AND ($3::text = ''
@@ -218,6 +218,12 @@ func (q *Queries) AdminSearchProfiles(ctx context.Context, arg AdminSearchProfil
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.FeedVersion,
+			&i.Scenario,
+			&i.AcceptsRoom,
+			&i.UtilitiesRub,
+			&i.DepositRub,
+			&i.PlaceNote,
+			&i.RequiredHabits,
 		); err != nil {
 			return nil, err
 		}

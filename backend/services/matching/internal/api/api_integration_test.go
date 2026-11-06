@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
@@ -63,6 +64,10 @@ type candidate struct {
 	moveInTo       time.Time
 	status         string
 	habits         map[string]string
+	scenario       string
+	acceptsRoom    bool
+	required       []string
+	districts      string
 }
 
 func newCandidate(name string) candidate {
@@ -79,6 +84,9 @@ func newCandidate(name string) candidate {
 		moveInTo:       today.AddDate(0, 0, 40),
 		status:         "searching",
 		habits:         map[string]string{"smoking": "no", "guests": "with_notice", "sleep": "before_23"},
+		scenario:       "pair",
+		required:       []string{},
+		districts:      "центр",
 	}
 }
 
@@ -92,10 +100,12 @@ func (f *dbFixture) insert(t *testing.T, c candidate) uuid.UUID {
 	_, err = f.pool.Exec(context.Background(), `
 INSERT INTO candidate (user_id, source_version, display_name, birth_year, gender, occupation, city_id,
                        districts, budget_min_rub, budget_max_rub, move_in_from, move_in_to,
-                       roommate_gender, questionnaire_version, habits, search_status, profile_updated_at)
-VALUES ($1, 1, $2, 2006, $3, 'студент', $4, 'центр', $5, $6, $7, $8, $9, 1, $10, $11, $12)`,
+                       roommate_gender, questionnaire_version, habits, search_status, profile_updated_at,
+                       scenario, accepts_room, required_habits, utilities_rub, deposit_rub)
+VALUES ($1, 1, $2, 2006, $3, 'студент', $4, $13, $5, $6, $7, $8, $9, 1, $10, $11, $12, $14, $15, $16,
+        CASE WHEN $14 = 'room_offer' THEN 3000 END, CASE WHEN $14 = 'room_offer' THEN 12000 END)`,
 		c.id, c.name, c.gender, c.cityID, c.budgetMin, c.budgetMax, c.moveInFrom, c.moveInTo,
-		c.roommateGender, habits, c.status, f.next)
+		c.roommateGender, habits, c.status, f.next, c.districts, c.scenario, c.acceptsRoom, c.required)
 	if err != nil {
 		t.Fatalf("insert candidate %s: %v", c.name, err)
 	}
@@ -189,6 +199,7 @@ func TestFeedAppliesEveryHardCondition(t *testing.T) {
 		return c
 	}())
 	f.insert(t, func() candidate { c := newCandidate("На паузе"); c.status = "paused"; return c }())
+	f.insert(t, func() candidate { c := newCandidate("Сосед найден"); c.status = "found"; return c }())
 	f.insert(t, func() candidate {
 		c := newCandidate("Хочет соседку")
 		c.gender, c.roommateGender = "female", "same"
@@ -422,4 +433,95 @@ func problemCode(t *testing.T, rec *httptest.ResponseRecorder) string {
 		t.Fatalf("response is not a problem document: %v; body: %s", err, rec.Body.String())
 	}
 	return doc.Code
+}
+
+func (f *dbFixture) feed(t *testing.T, query string) []string {
+	t.Helper()
+	req, rec := f.do(http.MethodGet, "/v1/candidates"+query, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d; body: %s", rec.Code, rec.Body.String())
+	}
+	openapitest.AssertResponse(t, f.spec, req, rec)
+	got := names(decode[api.CandidatePage](t, rec).Items)
+	slices.Sort(got)
+	return got
+}
+
+func place(name string, rent int32) candidate {
+	c := newCandidate(name)
+	c.scenario = "room_offer"
+	c.budgetMin, c.budgetMax = rent, rent
+	return c
+}
+
+// A free place in a rented flat meets only people ready to move into one;
+// two free places never meet (scenarios of segments 1 and 2).
+func TestFeedMatchesScenarios(t *testing.T) {
+	f := newDBFixture(t)
+	f.insertViewer(t, nil)
+	f.insert(t, newCandidate("Ищет вместе"))
+	f.insert(t, place("Место", 12000))
+	if got := f.feed(t, ""); !slices.Equal(got, []string{"Ищет вместе"}) {
+		t.Fatalf("pair not ready for a room sees %v", got)
+	}
+
+	f2 := newDBFixture(t)
+	f2.insertViewer(t, func(v *candidate) { v.acceptsRoom = true })
+	f2.insert(t, newCandidate("Ищет вместе"))
+	placeID := f2.insert(t, place("Место", 12000))
+	f2.insert(t, place("Дорогое место", 20000))
+	if got := f2.feed(t, ""); !slices.Equal(got, []string{"Ищет вместе", "Место"}) {
+		t.Fatalf("pair ready for a room sees %v", got)
+	}
+	req, rec := f2.do(http.MethodGet, "/v1/candidates/"+placeID.String(), "")
+	openapitest.AssertResponse(t, f2.spec, req, rec)
+	detail := decode[api.CandidateDetail](t, rec)
+	if detail.Card.Scenario != api.RoomOffer || detail.Card.UtilitiesRub == nil ||
+		detail.Card.DepositRub == nil || *detail.Card.DepositRub != 12000 || !detail.Conditions.ScenarioOk {
+		t.Fatalf("free place card = %+v", detail)
+	}
+
+	f3 := newDBFixture(t)
+	f3.insertViewer(t, func(v *candidate) { *v = place("Зритель", 12000); v.id = uuid.MustParse(userID) })
+	f3.insert(t, newCandidate("Не готов к комнате"))
+	f3.insert(t, func() candidate { c := newCandidate("Готов к комнате"); c.acceptsRoom = true; return c }())
+	f3.insert(t, place("Другое место", 12000))
+	if got := f3.feed(t, ""); !slices.Equal(got, []string{"Готов к комнате"}) {
+		t.Fatalf("free place sees %v", got)
+	}
+}
+
+// Required questions exclude a known different answer in both directions;
+// an unanswered question does not exclude anyone.
+func TestFeedAppliesRequiredHabitsAndDistrict(t *testing.T) {
+	f := newDBFixture(t)
+	f.insertViewer(t, func(v *candidate) { v.required = []string{"smoking"} })
+	f.insert(t, newCandidate("Не курит"))
+	f.insert(t, func() candidate {
+		c := newCandidate("Курит")
+		c.habits = map[string]string{"smoking": "at_home"}
+		return c
+	}())
+	f.insert(t, func() candidate {
+		c := newCandidate("Не ответил")
+		c.habits = map[string]string{"guests": "freely"}
+		return c
+	}())
+	f.insert(t, func() candidate {
+		c := newCandidate("Требует гостей без предупреждения")
+		c.required = []string{"guests"}
+		c.habits = map[string]string{"smoking": "no", "guests": "freely"}
+		return c
+	}())
+	f.insert(t, func() candidate {
+		c := newCandidate("Другой район")
+		c.districts = "Ленинский район"
+		return c
+	}())
+	if got := f.feed(t, ""); !slices.Equal(got, []string{"Другой район", "Не курит", "Не ответил"}) {
+		t.Fatalf("feed = %v", got)
+	}
+	if got := f.feed(t, "?district=%D0%BB%D0%B5%D0%BD%D0%B8%D0%BD"); !slices.Equal(got, []string{"Другой район"}) {
+		t.Fatalf("district filter = %v", got)
+	}
 }

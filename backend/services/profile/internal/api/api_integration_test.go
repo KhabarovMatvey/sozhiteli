@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -225,6 +226,13 @@ func TestPutCreatesThenReplacesProfile(t *testing.T) {
 	if got := decodeProfile(t, rec); got.SearchStatus != api.Paused || len(got.Habits) != len(questionnaire.Current().Questions) {
 		t.Errorf("stored profile differs from the saved one: %+v", got)
 	}
+
+	// The search can be finished with a result and resumed later.
+	body["search_status"] = "found"
+	_, rec = f.do(http.MethodPut, "/v1/me/profile", f.token, encode(t, body))
+	if rec.Code != http.StatusOK || decodeProfile(t, rec).SearchStatus != api.Found {
+		t.Fatalf("finish search: status = %d; body: %s", rec.Code, rec.Body.String())
+	}
 }
 
 // Saving goes through the triggers, so the change reaches the change feed
@@ -343,5 +351,58 @@ SELECT pg_snapshot_xmin(pg_current_snapshot())::text::bigint >
 			t.Fatal("feed horizon did not pass the written changes within 10s")
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// A free place needs its costs, a single rent and known required questions;
+// fields of the other scenario are dropped instead of rejected.
+func TestRoomOfferProfileRules(t *testing.T) {
+	f := newDBFixture(t)
+	body := validProfile()
+	body["scenario"] = "room_offer"
+	body["budget_min_rub"], body["budget_max_rub"] = 12000, 15000
+	body["required_habits"] = []string{"smoking", "no_such_question"}
+	_, rec := f.do(http.MethodPut, "/v1/me/profile", f.token, encode(t, body))
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d; body: %s", rec.Code, rec.Body.String())
+	}
+	for _, want := range []string{`"budget_max_rub"`, `"utilities_rub"`, `"deposit_rub"`, `"required_habits"`, "single_value", "unknown_question"} {
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("errors do not mention %s: %s", want, rec.Body.String())
+		}
+	}
+
+	body["budget_max_rub"] = 12000
+	body["utilities_rub"], body["deposit_rub"] = 3000, 12000
+	body["place_note"] = "  комната 12 м², до метро 5 минут  "
+	body["accepts_room"] = true
+	body["required_habits"] = []string{"smoking"}
+	_, rec = f.do(http.MethodPut, "/v1/me/profile", f.token, encode(t, body))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d; body: %s", rec.Code, rec.Body.String())
+	}
+	saved := decodeProfile(t, rec)
+	if saved.Scenario != api.RoomOffer || saved.AcceptsRoom || saved.PlaceNote != "комната 12 м², до метро 5 минут" ||
+		saved.UtilitiesRub == nil || saved.DepositRub == nil || *saved.DepositRub != 12000 || len(saved.RequiredHabits) != 1 {
+		t.Fatalf("saved = %+v", saved)
+	}
+
+	body["scenario"] = "pair"
+	body["budget_max_rub"] = 15000
+	_, rec = f.do(http.MethodPut, "/v1/me/profile", f.token, encode(t, body))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d; body: %s", rec.Code, rec.Body.String())
+	}
+	pair := decodeProfile(t, rec)
+	if pair.UtilitiesRub != nil || pair.DepositRub != nil || pair.PlaceNote != "" || !pair.AcceptsRoom {
+		t.Fatalf("pair kept place fields: %+v", pair)
+	}
+
+	body["place_note"] = "пишите в t.me/someone"
+	body["scenario"] = "room_offer"
+	body["budget_max_rub"] = 12000
+	_, rec = f.do(http.MethodPut, "/v1/me/profile", f.token, encode(t, body))
+	if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), "contact_not_allowed") {
+		t.Fatalf("contact in place_note: status = %d; body: %s", rec.Code, rec.Body.String())
 	}
 }

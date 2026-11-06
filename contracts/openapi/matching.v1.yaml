@@ -103,7 +103,9 @@ paths:
       description: |
         Только кандидаты со статусом searching, прошедшие обязательные условия:
         тот же город, пересечение бюджетов, пересечение сроков заселения,
-        взаимное соблюдение предпочтения по полу соседа. Сам пользователь в
+        взаимное соблюдение предпочтения по полу соседа, совместимые сценарии
+        (pair - pair; room_offer - pair с accepts_room) и одинаковые ответы на
+        обязательные вопросы обеих сторон (required_habits). Сам пользователь в
         выдачу не попадает. Сортировка - по убыванию времени обновления анкеты.
       x-implementation-status: implemented
       parameters:
@@ -117,6 +119,16 @@ paths:
             minimum: 1
             maximum: 50
             default: 20
+        - name: district
+          in: query
+          required: false
+          description: |
+            Оставить кандидатов, в чьих районах встречается эта строка (без учёта
+            регистра). При смене фильтра выдачу начинают с первой страницы.
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 50
       responses:
         '200':
           description: Страница выдачи
@@ -394,6 +406,9 @@ components:
         - move_in_from
         - move_in_to
         - search_status
+        - scenario
+        - accepts_room
+        - place_note
         - compatibility
       properties:
         user_id:
@@ -425,13 +440,34 @@ components:
           format: date
         search_status:
           type: string
-          enum: [searching, paused]
+          enum: [searching, paused, found]
+        scenario:
+          type: string
+          description: |
+            pair - ищет соседа для совместной аренды; room_offer - предлагает
+            свободное место в уже снятой квартире (тогда budget_min_rub =
+            budget_max_rub = аренда за место в месяц)
+          enum: [pair, room_offer]
+        accepts_room:
+          type: boolean
+          description: pair готов заехать на свободное место в уже снятой квартире
+        utilities_rub:
+          type: integer
+          format: int32
+          description: Только room_offer - коммунальные на человека в месяц
+        deposit_rub:
+          type: integer
+          format: int32
+          description: Только room_offer - залог при заселении
+        place_note:
+          type: string
+          description: Только room_offer - о квартире и месте; иначе пустая строка
         compatibility:
           $ref: '#/components/schemas/Compatibility'
     ConditionsComparison:
       type: object
       description: Сравнение обязательных условий с условиями текущего пользователя
-      required: [same_city, budget_overlap, move_in_overlap, roommate_gender_ok]
+      required: [same_city, budget_overlap, move_in_overlap, roommate_gender_ok, scenario_ok, required_habits_ok]
       properties:
         same_city:
           type: boolean
@@ -442,6 +478,12 @@ components:
         roommate_gender_ok:
           type: boolean
           description: Предпочтения обоих по полу соседа соблюдены
+        scenario_ok:
+          type: boolean
+          description: Сценарии совместимы (pair - pair; room_offer - pair с accepts_room)
+        required_habits_ok:
+          type: boolean
+          description: По обязательным вопросам обеих сторон нет разных ответов
     HabitComparison:
       type: object
       required: [question_code, result]
@@ -460,6 +502,12 @@ components:
             match - ответы одинаковые; difference - разные; not_comparable - у
             одной из сторон нет ответа (анкеты разных версий)
           enum: [match, difference, not_comparable]
+        required_by_me:
+          type: boolean
+          description: Вопрос обязателен для текущего пользователя
+        required_by_them:
+          type: boolean
+          description: Вопрос обязателен для кандидата
     CandidateDetail:
       type: object
       required: [card, conditions, habits]

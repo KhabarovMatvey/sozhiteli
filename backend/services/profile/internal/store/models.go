@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type City struct {
@@ -35,6 +36,12 @@ type Profile struct {
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 	FeedVersion          int64
+	Scenario             string
+	AcceptsRoom          bool
+	UtilitiesRub         pgtype.Int4
+	DepositRub           pgtype.Int4
+	PlaceNote            string
+	RequiredHabits       []string
 }
 
 type ProfileDeletion struct {

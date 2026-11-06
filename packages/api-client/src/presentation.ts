@@ -28,6 +28,13 @@ const problemMessages: Record<string, string> = {
   already_responded: 'На этот запрос уже ответили.',
   contact_request_not_found: 'Запрос не найден.',
   rate_limited: 'Слишком много запросов. Попробуйте позже.',
+  blocked: 'Обмен запросами с этим человеком недоступен.',
+  block_limit: 'Слишком много заблокированных. Разблокируйте кого-нибудь в разделе «Запросы».',
+  report_exists: 'Вы уже пожаловались на этого человека, жалоба рассматривается.',
+  report_not_found: 'Жалоба не найдена.',
+  already_resolved: 'Жалоба уже рассмотрена.',
+  not_accepted: 'Договорённости доступны после обмена контактами.',
+  favorite_limit: 'В избранном уже 200 человек. Уберите кого-нибудь.',
   validation_failed: 'Проверьте поля формы.',
   invalid_request: 'Некорректные данные. Обновите страницу и попробуйте снова.',
   service_unavailable: 'Сервис временно недоступен. Попробуйте через минуту.',
@@ -35,6 +42,37 @@ const problemMessages: Record<string, string> = {
   internal_error: 'Что-то пошло не так. Попробуйте ещё раз.',
   network: 'Не удалось связаться с сервером. Проверьте подключение.',
 };
+
+type ReportReason = InteractionComponents['schemas']['ReportReason'];
+
+type AgreementTopic = keyof InteractionComponents['schemas']['AgreementItems'];
+
+/** Темы договорённостей пары (функция Should №16) в порядке показа. */
+export const agreementTopics: { code: AgreementTopic; label: string; hint: string }[] = [
+  { code: 'cleaning', label: 'Уборка', hint: 'Например: общие зоны по графику, по субботам' },
+  { code: 'guests', label: 'Гости', hint: 'Например: предупреждаем за день, без ночёвок в будни' },
+  { code: 'noise', label: 'Шум и тишина', hint: 'Например: тихо с 23:00 до 8:00' },
+  {
+    code: 'payments',
+    label: 'Платежи и общие покупки',
+    hint: 'Например: коммунальные пополам до 10-го числа',
+  },
+  { code: 'move_in', label: 'Въезд', hint: 'Например: въезд 1 сентября, ключи у хозяйки' },
+  { code: 'other', label: 'Другое', hint: '' },
+];
+
+/** Причины жалобы в порядке показа; «other» требует комментария. */
+export const reportReasons: { code: ReportReason; label: string }[] = [
+  { code: 'fake', label: 'Анкета не похожа на настоящего человека' },
+  { code: 'commercial', label: 'Риелтор, посредник или реклама' },
+  { code: 'fraud', label: 'Просит деньги или предоплату' },
+  { code: 'offensive', label: 'Оскорбления или давление' },
+  { code: 'other', label: 'Другое' },
+];
+
+export function reportReasonLabel(code: ReportReason): string {
+  return reportReasons.find((r) => r.code === code)?.label ?? code;
+}
 
 /**
  * Ошибка, которой нет в ответе сервера: запрос не дошёл до сервера или ответ
@@ -94,7 +132,29 @@ export function formatDate(isoDate: string): string {
 }
 
 export function formatBudget(min: number, max: number): string {
+  if (min === max) return formatRub(min);
   return `${moneyFormat.format(min)} – ${moneyFormat.format(max)} ₽`;
+}
+
+export function formatRub(value: number): string {
+  return `${moneyFormat.format(value)} ₽`;
+}
+
+/**
+ * Расходы на свободном месте (гипотеза H2): сколько нужно при заселении и
+ * сколько платить каждый месяц. null - у анкеты нет свободного места.
+ */
+export function placeCosts(card: {
+  scenario: 'pair' | 'room_offer';
+  budget_min_rub: number;
+  utilities_rub?: number;
+  deposit_rub?: number;
+}): { rent: number; utilities: number; deposit: number; moveIn: number; monthly: number } | null {
+  if (card.scenario !== 'room_offer') return null;
+  const rent = card.budget_min_rub;
+  const utilities = card.utilities_rub ?? 0;
+  const deposit = card.deposit_rub ?? 0;
+  return { rent, utilities, deposit, moveIn: rent + deposit, monthly: rent + utilities };
 }
 
 export function formatAge(age: number): string {

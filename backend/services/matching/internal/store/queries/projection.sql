@@ -19,12 +19,15 @@ WHERE source = sqlc.arg(source)
 INSERT INTO candidate (user_id, source_version, display_name, birth_year, gender, occupation,
                        city_id, districts, budget_min_rub, budget_max_rub, move_in_from,
                        move_in_to, roommate_gender, questionnaire_version, habits,
-                       search_status, profile_updated_at)
+                       search_status, profile_updated_at, scenario, accepts_room, utilities_rub,
+                       deposit_rub, place_note, required_habits)
 VALUES (sqlc.arg(user_id), sqlc.arg(source_version), sqlc.arg(display_name), sqlc.arg(birth_year),
         sqlc.arg(gender), sqlc.arg(occupation), sqlc.arg(city_id), sqlc.arg(districts),
         sqlc.arg(budget_min_rub), sqlc.arg(budget_max_rub), sqlc.arg(move_in_from),
         sqlc.arg(move_in_to), sqlc.arg(roommate_gender), sqlc.arg(questionnaire_version),
-        sqlc.arg(habits), sqlc.arg(search_status), sqlc.arg(profile_updated_at))
+        sqlc.arg(habits), sqlc.arg(search_status), sqlc.arg(profile_updated_at),
+        sqlc.arg(scenario), sqlc.arg(accepts_room), sqlc.narg(utilities_rub), sqlc.narg(deposit_rub),
+        sqlc.arg(place_note), sqlc.arg(required_habits)::text[])
 ON CONFLICT (user_id) DO UPDATE
     SET source_version        = EXCLUDED.source_version,
         display_name          = EXCLUDED.display_name,
@@ -42,6 +45,12 @@ ON CONFLICT (user_id) DO UPDATE
         habits                = EXCLUDED.habits,
         search_status         = EXCLUDED.search_status,
         profile_updated_at    = EXCLUDED.profile_updated_at,
+        scenario              = EXCLUDED.scenario,
+        accepts_room          = EXCLUDED.accepts_room,
+        utilities_rub         = EXCLUDED.utilities_rub,
+        deposit_rub           = EXCLUDED.deposit_rub,
+        place_note            = EXCLUDED.place_note,
+        required_habits       = EXCLUDED.required_habits,
         synced_at             = now()
 WHERE candidate.source_version <= EXCLUDED.source_version;
 

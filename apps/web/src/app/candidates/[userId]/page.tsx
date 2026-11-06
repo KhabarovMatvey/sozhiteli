@@ -7,7 +7,9 @@ import {
   contactLabel,
   contactUrl,
   formatBudget,
+  formatRub,
   optionLabel,
+  placeCosts,
   problemMessage,
   questionTitle,
 } from '@sozhiteli/api-client';
@@ -18,8 +20,11 @@ import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/avatar';
 import { CandidateSpecs, MatchChip, candidateTitle } from '@/components/candidate-summary';
 import { RequireAuth } from '@/components/require-auth';
+import { SafetyActions } from '@/components/safety-actions';
 import { ErrorMessage, Loading } from '@/components/states';
 import { useApi } from '@/lib/api';
+import { useBlocks } from '@/lib/blocks';
+import { useFavorites } from '@/lib/favorites';
 import { useCities, useQuestionnaire } from '@/lib/reference';
 
 type Detail = MatchingSchemas['CandidateDetail'];
@@ -31,6 +36,8 @@ const conditionLabels: [keyof Detail['conditions'], string][] = [
   ['budget_overlap', 'Бюджеты пересекаются'],
   ['move_in_overlap', 'Сроки заселения пересекаются'],
   ['roommate_gender_ok', 'Подходит по полу соседа'],
+  ['scenario_ok', 'Подходит по сценарию поиска'],
+  ['required_habits_ok', 'Обязательные привычки совпадают'],
 ];
 
 const resultOrder: Habit['result'][] = ['difference', 'match', 'not_comparable'];
@@ -62,6 +69,20 @@ function ContactPanel({ detail }: { detail: Detail }) {
   const [request, setRequest] = useState<ContactRequest | null | undefined>(undefined);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [sending, setSending] = useState(false);
+  const blocks = useBlocks();
+  const favorites = useFavorites();
+  const [blockedOverride, setBlockedOverride] = useState<boolean | null>(null);
+  const saved = favorites.ids?.has(userId) ?? false;
+
+  async function toggleFavorite() {
+    const params = { params: { path: { user_id: userId } } };
+    const { error } = saved
+      ? await api.interaction.DELETE('/v1/favorites/{user_id}', params)
+      : await api.interaction.PUT('/v1/favorites/{user_id}', params);
+    if (error) setProblem(error);
+    else await favorites.reload();
+  }
+  const blocked = blockedOverride ?? blocks.ids?.has(userId) ?? false;
 
   useEffect(() => {
     let cancelled = false;
@@ -80,7 +101,7 @@ function ContactPanel({ detail }: { detail: Detail }) {
     return () => {
       cancelled = true;
     };
-  }, [api, userId]);
+  }, [api, userId, blockedOverride]);
 
   async function send() {
     setSending(true);
@@ -99,12 +120,22 @@ function ContactPanel({ detail }: { detail: Detail }) {
     <aside className="panel sticky stack">
       <div>
         <div className="price">{formatBudget(detail.card.budget_min_rub, detail.card.budget_max_rub)}</div>
-        <p className="small muted">в месяц на человека, без коммунальных</p>
+        <p className="small muted">
+          {placeCosts(detail.card)
+            ? `аренда за место; при заселении ${formatRub(placeCosts(detail.card)!.moveIn)}`
+            : 'в месяц на человека, без коммунальных'}
+        </p>
       </div>
       <MatchChip card={detail.card} />
+      {favorites.ids && !blocked && (
+        <button type="button" className="btn btn-block" onClick={() => void toggleFavorite()}>
+          {saved ? '★ В избранном — убрать' : '☆ В избранное'}
+        </button>
+      )}
 
       {request === undefined && !problem && <Loading />}
-      {contact && (
+      {blocked && <p className="info">Вы заблокировали этого человека: запросы и контакты недоступны.</p>}
+      {!blocked && contact && (
         <>
           <p className="success">Вы обменялись контактами</p>
           <a className="contact-link" href={contactUrl(contact)} target="_blank" rel="noopener noreferrer">
@@ -112,10 +143,10 @@ function ContactPanel({ detail }: { detail: Detail }) {
           </a>
         </>
       )}
-      {request?.status === 'pending' && request.direction === 'outgoing' && (
+      {!blocked && request?.status === 'pending' && request.direction === 'outgoing' && (
         <p className="info">Запрос отправлен. Контакт появится здесь, когда кандидат его примет.</p>
       )}
-      {request?.status === 'pending' && request.direction === 'incoming' && (
+      {!blocked && request?.status === 'pending' && request.direction === 'incoming' && (
         <>
           <p className="info">Этот человек уже прислал вам запрос.</p>
           <Link href="/requests" className="btn btn-accent btn-block">
@@ -123,8 +154,8 @@ function ContactPanel({ detail }: { detail: Detail }) {
           </Link>
         </>
       )}
-      {request?.status === 'declined' && <p className="muted">Запрос отклонён.</p>}
-      {request === null && (
+      {!blocked && request?.status === 'declined' && <p className="muted">Запрос отклонён.</p>}
+      {!blocked && request === null && (
         <>
           <button
             type="button"
@@ -145,6 +176,7 @@ function ContactPanel({ detail }: { detail: Detail }) {
           {problem.code === 'contact_required' && <Link href="/contact">Указать контакт →</Link>}
         </div>
       )}
+      {blocks.ids && <SafetyActions userId={userId} blocked={blocked} onBlockedChange={setBlockedOverride} />}
     </aside>
   );
 }
@@ -227,7 +259,10 @@ function CandidateScreen({ userId }: { userId: string }) {
               aria-label={`Совпадает ${matched} из ${compared}`}
             />
           )}
-          <p className="small muted mb-8">Сначала — различия: о них стоит договориться заранее.</p>
+          <p className="small muted mb-8">
+            Сначала — различия: о них стоит договориться заранее. «?» — кто-то из вас не ответил на вопрос:
+            уточните при знакомстве. «обяз.» — вопрос обязателен для одного из вас.
+          </p>
           <div className="compare">
             <div className="compare-row compare-head">
               <span />
@@ -238,7 +273,19 @@ function CandidateScreen({ userId }: { userId: string }) {
             {habits.map((h) => (
               <div key={h.question_code} className="compare-row">
                 <Mark result={h.result} />
-                <span className="compare-question">{questionTitle(q, h.question_code)}</span>
+                <span className="compare-question">
+                  {questionTitle(q, h.question_code)}
+                  {(h.required_by_me || h.required_by_them) && (
+                    <span className="chip chip-info small">
+                      обяз.
+                      {h.required_by_me && h.required_by_them
+                        ? ' для обоих'
+                        : h.required_by_me
+                          ? ' для вас'
+                          : ' для кандидата'}
+                    </span>
+                  )}
+                </span>
                 <span>{optionLabel(q, h.question_code, h.my_option)}</span>
                 <span>{optionLabel(q, h.question_code, h.their_option)}</span>
               </div>

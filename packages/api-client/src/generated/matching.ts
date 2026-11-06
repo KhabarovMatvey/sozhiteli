@@ -57,7 +57,9 @@ export interface paths {
      * Выдача кандидатов для текущего пользователя
      * @description Только кандидаты со статусом searching, прошедшие обязательные условия:
      *     тот же город, пересечение бюджетов, пересечение сроков заселения,
-     *     взаимное соблюдение предпочтения по полу соседа. Сам пользователь в
+     *     взаимное соблюдение предпочтения по полу соседа, совместимые сценарии
+     *     (pair - pair; room_offer - pair с accepts_room) и одинаковые ответы на
+     *     обязательные вопросы обеих сторон (required_habits). Сам пользователь в
      *     выдачу не попадает. Сортировка - по убыванию времени обновления анкеты.
      */
     get: operations['listCandidates'];
@@ -196,7 +198,28 @@ export interface components {
       /** Format: date */
       move_in_to: string;
       /** @enum {string} */
-      search_status: 'searching' | 'paused';
+      search_status: 'searching' | 'paused' | 'found';
+      /**
+       * @description pair - ищет соседа для совместной аренды; room_offer - предлагает
+       *     свободное место в уже снятой квартире (тогда budget_min_rub =
+       *     budget_max_rub = аренда за место в месяц)
+       * @enum {string}
+       */
+      scenario: 'pair' | 'room_offer';
+      /** @description pair готов заехать на свободное место в уже снятой квартире */
+      accepts_room: boolean;
+      /**
+       * Format: int32
+       * @description Только room_offer - коммунальные на человека в месяц
+       */
+      utilities_rub?: number;
+      /**
+       * Format: int32
+       * @description Только room_offer - залог при заселении
+       */
+      deposit_rub?: number;
+      /** @description Только room_offer - о квартире и месте; иначе пустая строка */
+      place_note: string;
       compatibility: components['schemas']['Compatibility'];
     };
     /** @description Сравнение обязательных условий с условиями текущего пользователя */
@@ -206,6 +229,10 @@ export interface components {
       move_in_overlap: boolean;
       /** @description Предпочтения обоих по полу соседа соблюдены */
       roommate_gender_ok: boolean;
+      /** @description Сценарии совместимы (pair - pair; room_offer - pair с accepts_room) */
+      scenario_ok: boolean;
+      /** @description По обязательным вопросам обеих сторон нет разных ответов */
+      required_habits_ok: boolean;
     };
     HabitComparison: {
       question_code: string;
@@ -219,6 +246,10 @@ export interface components {
        * @enum {string}
        */
       result: 'match' | 'difference' | 'not_comparable';
+      /** @description Вопрос обязателен для текущего пользователя */
+      required_by_me?: boolean;
+      /** @description Вопрос обязателен для кандидата */
+      required_by_them?: boolean;
     };
     CandidateDetail: {
       card: components['schemas']['CandidateCard'];
@@ -354,6 +385,11 @@ export interface operations {
         /** @description Непрозрачный курсор из next_cursor предыдущего ответа */
         cursor?: components['parameters']['Cursor'];
         limit?: number;
+        /**
+         * @description Оставить кандидатов, в чьих районах встречается эта строка (без учёта
+         *     регистра). При смене фильтра выдачу начинают с первой страницы.
+         */
+        district?: string;
       };
       header?: never;
       path?: never;

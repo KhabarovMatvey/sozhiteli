@@ -125,7 +125,7 @@ func TestGetQuestionnaire(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got.Version != 1 || len(got.Questions) == 0 {
+	if got.Version != 2 || len(got.Questions) != 11 {
 		t.Errorf("unexpected questionnaire: version %d, %d questions", got.Version, len(got.Questions))
 	}
 }

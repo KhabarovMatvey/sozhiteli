@@ -15,7 +15,9 @@ const getAdminDatabase = `-- name: GetAdminDatabase :one
 SELECT current_database()::text AS database,
        pg_database_size(current_database())::bigint AS size_bytes,
        (SELECT count(*) FROM contact_request)::bigint AS contact_request_count,
-       (SELECT count(*) FROM contact)::bigint AS contact_count
+       (SELECT count(*) FROM contact)::bigint AS contact_count,
+       (SELECT count(*) FROM user_block)::bigint AS user_block_count,
+       (SELECT count(*) FROM report)::bigint AS report_count
 `
 
 type GetAdminDatabaseRow struct {
@@ -23,6 +25,8 @@ type GetAdminDatabaseRow struct {
 	SizeBytes           int64
 	ContactRequestCount int64
 	ContactCount        int64
+	UserBlockCount      int64
+	ReportCount         int64
 }
 
 // Contact values remain private even for administrators.
@@ -34,6 +38,8 @@ func (q *Queries) GetAdminDatabase(ctx context.Context) (GetAdminDatabaseRow, er
 		&i.SizeBytes,
 		&i.ContactRequestCount,
 		&i.ContactCount,
+		&i.UserBlockCount,
+		&i.ReportCount,
 	)
 	return i, err
 }
@@ -107,6 +113,93 @@ func (q *Queries) ListAdminContacts(ctx context.Context, arg ListAdminContactsPa
 	items := []ListAdminContactsRow{}
 	for rows.Next() {
 		var i ListAdminContactsRow
+		if err := rows.Scan(&i.KeyID, &i.RowData); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAdminReportRows = `-- name: ListAdminReportRows :many
+SELECT id AS key_id,
+       jsonb_build_array(id, reporter_id, reported_id, reason, status, created_at, resolved_at) AS row_data
+FROM report
+WHERE NOT $1::boolean OR id > $2::uuid
+ORDER BY id
+LIMIT $3::integer
+`
+
+type ListAdminReportRowsParams struct {
+	HasCursor bool
+	AfterID   uuid.UUID
+	PageSize  int32
+}
+
+type ListAdminReportRowsRow struct {
+	KeyID   uuid.UUID
+	RowData []byte
+}
+
+func (q *Queries) ListAdminReportRows(ctx context.Context, arg ListAdminReportRowsParams) ([]ListAdminReportRowsRow, error) {
+	rows, err := q.db.Query(ctx, listAdminReportRows, arg.HasCursor, arg.AfterID, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAdminReportRowsRow{}
+	for rows.Next() {
+		var i ListAdminReportRowsRow
+		if err := rows.Scan(&i.KeyID, &i.RowData); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAdminUserBlocks = `-- name: ListAdminUserBlocks :many
+SELECT (blocker_id::text || '/' || blocked_id::text)::text AS key_id,
+       jsonb_build_array(blocker_id, blocked_id, created_at) AS row_data
+FROM user_block
+WHERE NOT $1::boolean OR (blocker_id, blocked_id) > ($2::uuid, $3::uuid)
+ORDER BY blocker_id, blocked_id
+LIMIT $4::integer
+`
+
+type ListAdminUserBlocksParams struct {
+	HasCursor    bool
+	AfterBlocker uuid.UUID
+	AfterBlocked uuid.UUID
+	PageSize     int32
+}
+
+type ListAdminUserBlocksRow struct {
+	KeyID   string
+	RowData []byte
+}
+
+// Ключ страницы - пара (blocker_id, blocked_id), закодированная одной строкой.
+func (q *Queries) ListAdminUserBlocks(ctx context.Context, arg ListAdminUserBlocksParams) ([]ListAdminUserBlocksRow, error) {
+	rows, err := q.db.Query(ctx, listAdminUserBlocks,
+		arg.HasCursor,
+		arg.AfterBlocker,
+		arg.AfterBlocked,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAdminUserBlocksRow{}
+	for rows.Next() {
+		var i ListAdminUserBlocksRow
 		if err := rows.Scan(&i.KeyID, &i.RowData); err != nil {
 			return nil, err
 		}

@@ -11,6 +11,10 @@ info:
     означает согласие отправителя показать свой контакт получателю, если тот
     примет запрос.
 
+    Блокировка в любую сторону запрещает новые запросы между двумя людьми,
+    закрывает ожидающие и скрывает уже раскрытые контакты. Жалобы
+    рассматривает администратор вручную.
+
     Правила контракта: README.md, раздел «API».
 servers:
   - url: http://localhost:8080/api/interaction
@@ -24,6 +28,12 @@ tags:
     description: Собственный контакт текущего пользователя
   - name: contact-requests
     description: Запросы на обмен контактами
+  - name: safety
+    description: Блокировки и жалобы на пользователей
+  - name: favorites
+    description: Сохранённые кандидаты
+  - name: agreements
+    description: Договорённости о быте после обмена контактами
 paths:
   /v1/admin/database:
     get:
@@ -288,6 +298,307 @@ paths:
           $ref: '#/components/responses/Conflict'
         default:
           $ref: '#/components/responses/Error'
+  /v1/blocks:
+    get:
+      tags: [safety]
+      operationId: listBlocks
+      summary: Пользователи, которых заблокировал текущий пользователь
+      description: |
+        Список целиком, новые первыми; число блокировок ограничено (500).
+        Клиент скрывает заблокированных из выдачи и списков запросов.
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Блокировки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlockList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/blocks/{user_id}:
+    put:
+      tags: [safety]
+      operationId: blockUser
+      summary: Заблокировать пользователя
+      description: |
+        Идемпотентно. Ожидающие запросы пары в обе стороны отклоняются, уже
+        раскрытые контакты перестают показываться обоим. Код 422 self_block -
+        блокировка самого себя; 409 block_limit - достигнут предел блокировок.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: Пользователь заблокирован
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      tags: [safety]
+      operationId: unblockUser
+      summary: Снять блокировку
+      description: Идемпотентно. Отклонённые при блокировке запросы не восстанавливаются.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: Блокировки нет
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/reports:
+    post:
+      tags: [safety]
+      operationId: createReport
+      summary: Пожаловаться на пользователя
+      description: |
+        Жалобу рассматривает администратор. Код 409 report_exists - открытая
+        жалоба на этого пользователя уже отправлена; 422 self_report - жалоба
+        на самого себя, comment_required - для reason = other нужен комментарий;
+        429 rate_limited - превышен суточный лимит жалоб.
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportCreate'
+      responses:
+        '201':
+          description: Жалоба принята
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/admin/reports:
+    get:
+      tags: [admin]
+      operationId: listAdminReports
+      summary: Очередь жалоб
+      description: Только роль sozhiteli-admin. Порядок - по времени поступления. По умолчанию status = open.
+      x-implementation-status: implemented
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ReportStatus'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 50
+            default: 20
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 512
+      responses:
+        '200':
+          description: Страница жалоб
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReportPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/admin/reports/{report_id}/resolve:
+    post:
+      tags: [admin]
+      operationId: resolveAdminReport
+      summary: Отметить жалобу рассмотренной
+      description: |
+        Только роль sozhiteli-admin. Меры к анкете принимаются отдельно в
+        Profile. Код 404 report_not_found; 409 already_resolved.
+      x-implementation-status: implemented
+      parameters:
+        - name: report_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Жалоба рассмотрена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          description: Жалобы нет (code = report_not_found)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/favorites:
+    get:
+      tags: [favorites]
+      operationId: listFavorites
+      summary: Сохранённые текущим пользователем кандидаты
+      description: Список целиком, новые первыми; не больше 200.
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Избранное
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/favorites/{user_id}:
+    put:
+      tags: [favorites]
+      operationId: addFavorite
+      summary: Сохранить кандидата
+      description: |
+        Идемпотентно. Код 422 self_favorite - себя сохранить нельзя;
+        409 favorite_limit - сохранено 200 человек.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: Сохранён
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      tags: [favorites]
+      operationId: removeFavorite
+      summary: Убрать кандидата из избранного
+      description: Идемпотентно.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: Кандидата в избранном нет
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/contact-requests/{request_id}/agreement:
+    get:
+      tags: [agreements]
+      operationId: getAgreement
+      summary: Договорённости пары
+      description: |
+        Доступно двум участникам запроса. Пока ничего не записано, items пуст.
+        Код 409 not_accepted - запрос не принят; blocked - между участниками
+        блокировка.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Договорённости
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agreement'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/RequestNotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      tags: [agreements]
+      operationId: putAgreement
+      summary: Записать договорённости пары
+      description: |
+        Заменяет записанное целиком; изменение видят оба участника. Коды 409 те
+        же, что у getAgreement.
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgreementInput'
+      responses:
+        '200':
+          description: Записано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agreement'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/RequestNotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/Error'
 components:
   securitySchemes:
     bearerAuth:
@@ -296,6 +607,13 @@ components:
       bearerFormat: JWT
       description: Access token OIDC-провайдера, audience = sozhiteli-api
   parameters:
+    UserId:
+      name: user_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     RequestId:
       name: request_id
       in: path
@@ -505,3 +823,171 @@ components:
           type: string
           nullable: true
           description: null - больше страниц нет
+    Block:
+      type: object
+      required: [user_id, created_at]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: Заблокированный пользователь
+        created_at:
+          type: string
+          format: date-time
+    BlockList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/Block'
+    ReportReason:
+      type: string
+      description: |
+        fake - анкета не похожа на настоящего человека; commercial - риелтор,
+        посредник или реклама; offensive - оскорбления или давление;
+        fraud - просит деньги или предоплату; other - другое (пояснить в comment).
+      enum: [fake, commercial, offensive, fraud, other]
+    ReportStatus:
+      type: string
+      enum: [open, resolved]
+    ReportCreate:
+      type: object
+      required: [reported_id, reason]
+      properties:
+        reported_id:
+          type: string
+          format: uuid
+        reason:
+          $ref: '#/components/schemas/ReportReason'
+        comment:
+          type: string
+          maxLength: 500
+          description: Пояснение своими словами; для reason = other обязательно (422 comment_required)
+    Report:
+      type: object
+      required: [id, reported_id, reason, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        reported_id:
+          type: string
+          format: uuid
+        reason:
+          $ref: '#/components/schemas/ReportReason'
+        status:
+          $ref: '#/components/schemas/ReportStatus'
+        created_at:
+          type: string
+          format: date-time
+    AdminReport:
+      type: object
+      required: [id, reporter_id, reported_id, reason, comment, status, created_at, reported_open_count]
+      properties:
+        id:
+          type: string
+          format: uuid
+        reporter_id:
+          type: string
+          format: uuid
+        reported_id:
+          type: string
+          format: uuid
+        reason:
+          $ref: '#/components/schemas/ReportReason'
+        comment:
+          type: string
+        status:
+          $ref: '#/components/schemas/ReportStatus'
+        created_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: string
+          format: date-time
+        reported_open_count:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Открытых жалоб на того же пользователя
+    AdminReportPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminReport'
+        next_cursor:
+          type: string
+          nullable: true
+    Favorite:
+      type: object
+      required: [user_id, created_at]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+    FavoriteList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/Favorite'
+    AgreementItems:
+      type: object
+      description: |
+        Текст по темам: cleaning - уборка; guests - гости; noise - шум и тишина;
+        payments - платежи и общие покупки; move_in - дата въезда и ключи;
+        other - другое. Пустые темы не передаются.
+      additionalProperties: false
+      properties:
+        cleaning:
+          type: string
+          maxLength: 300
+        guests:
+          type: string
+          maxLength: 300
+        noise:
+          type: string
+          maxLength: 300
+        payments:
+          type: string
+          maxLength: 300
+        move_in:
+          type: string
+          maxLength: 300
+        other:
+          type: string
+          maxLength: 300
+    AgreementInput:
+      type: object
+      required: [items]
+      properties:
+        items:
+          $ref: '#/components/schemas/AgreementItems'
+    Agreement:
+      type: object
+      required: [request_id, items]
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        items:
+          $ref: '#/components/schemas/AgreementItems'
+        updated_at:
+          type: string
+          format: date-time
+          description: Отсутствует, пока ничего не записано
+        updated_by_me:
+          type: boolean
+          description: Последнее изменение сделал текущий пользователь

@@ -1,7 +1,13 @@
 'use client';
 
 import type { InteractionSchemas, MatchingSchemas, ProfileSchemas, Problem } from '@sozhiteli/api-client';
-import { formatBudget, networkProblem, shortDay } from '@sozhiteli/api-client';
+import {
+  formatBudget,
+  networkProblem,
+  problemMessage,
+  reportReasonLabel,
+  shortDay,
+} from '@sozhiteli/api-client';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 
 import { ProfileForm } from '@/components/profile-form';
@@ -18,7 +24,9 @@ type Users = ProfileSchemas['AdminUserList'];
 type Profile = ProfileSchemas['Profile'];
 type Profiles = ProfileSchemas['AdminProfileList'];
 type Service = 'profile' | 'matching' | 'interaction';
-type Tab = 'overview' | 'users' | 'profiles' | 'databases';
+type Tab = 'overview' | 'reports' | 'users' | 'profiles' | 'databases';
+type Reports = InteractionSchemas['AdminReportPage'];
+type ReportStatus = InteractionSchemas['ReportStatus'];
 type QueryResult<T> = { data?: T; error?: Problem };
 type QueryState<T> = { data: T | null; error: Problem | null; loading: boolean; failed: boolean };
 
@@ -178,6 +186,161 @@ function Pagination({
         Далее →
       </button>
     </div>
+  );
+}
+
+/**
+ * Очередь жалоб. Рассмотрение ручное: администратор открывает анкету, при
+ * необходимости исправляет или удаляет её и отмечает жалобу рассмотренной.
+ */
+function ReportsPanel({
+  revision,
+  onEdit,
+  onChanged,
+}: {
+  revision: number;
+  onEdit: (userId: string) => void;
+  onChanged: () => void;
+}) {
+  const api = useApi();
+  const [status, setStatus] = useState<ReportStatus>('open');
+  const [cursor, setCursor] = useState<string | undefined>();
+  const [history, setHistory] = useState<(string | undefined)[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [problem, setProblem] = useState<Problem | null>(null);
+  const load = useCallback(
+    () => api.interaction.GET('/v1/admin/reports', { params: { query: { status, limit: 20, cursor } } }),
+    [api, status, cursor],
+  );
+  const state = useAdminQuery<Reports>(JSON.stringify([status, cursor, revision]), load);
+
+  function page(direction: 'previous' | 'next', next?: string) {
+    if (direction === 'next') {
+      setHistory([...history, cursor]);
+      setCursor(next);
+    } else {
+      setCursor(history.at(-1));
+      setHistory(history.slice(0, -1));
+    }
+  }
+  function show(next: ReportStatus) {
+    setStatus(next);
+    setCursor(undefined);
+    setHistory([]);
+  }
+  async function resolve(id: string) {
+    setBusy(id);
+    setProblem(null);
+    const { error } = await api.interaction.POST('/v1/admin/reports/{report_id}/resolve', {
+      params: { path: { report_id: id } },
+    });
+    setBusy(null);
+    if (error) setProblem(error);
+    else onChanged();
+  }
+
+  return (
+    <section className="panel stack">
+      <div className="page-head">
+        <div>
+          <h2>Жалобы</h2>
+          <p className="muted small">
+            Откройте анкету, при необходимости исправьте или удалите её, затем отметьте жалобу рассмотренной.
+          </p>
+        </div>
+      </div>
+      <div className="admin-tabs" aria-label="Статус жалоб">
+        {(
+          [
+            ['open', 'Открытые'],
+            ['resolved', 'Рассмотренные'],
+          ] as const
+        ).map(([key, title]) => (
+          <button
+            key={key}
+            type="button"
+            className={status === key ? 'admin-tab admin-tab-active' : 'admin-tab'}
+            onClick={() => show(key)}
+          >
+            {title}
+          </button>
+        ))}
+      </div>
+      {problem && (
+        <div className="alert" role="alert">
+          <p>{problemMessage(problem)}</p>
+        </div>
+      )}
+      {state.loading ? (
+        <Loading />
+      ) : state.failed ? (
+        <QueryError state={state} />
+      ) : state.data?.items.length === 0 ? (
+        <EmptyState title={status === 'open' ? 'Открытых жалоб нет' : 'Рассмотренных жалоб нет'}>
+          <p className="muted">Жалобы появляются здесь, когда пользователи их отправляют.</p>
+        </EmptyState>
+      ) : (
+        state.data && (
+          <>
+            <div className="admin-table-scroll">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Поступила</th>
+                    <th>Причина</th>
+                    <th>Комментарий</th>
+                    <th>На кого</th>
+                    <th>Открытых на него</th>
+                    <th>От кого</th>
+                    <th>Действие</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.data.items.map((report) => (
+                    <tr key={report.id}>
+                      <td>{date(report.created_at)}</td>
+                      <td>{reportReasonLabel(report.reason)}</td>
+                      <td className="admin-cell">{report.comment || '—'}</td>
+                      <td>
+                        <code>{report.reported_id}</code>
+                      </td>
+                      <td>{report.reported_open_count}</td>
+                      <td>
+                        <code>{report.reporter_id}</code>
+                      </td>
+                      <td>
+                        <div className="admin-row-actions">
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() => onEdit(report.reported_id)}
+                          >
+                            Открыть анкету
+                          </button>
+                          {report.status === 'open' ? (
+                            <button
+                              type="button"
+                              className="btn"
+                              disabled={busy === report.id}
+                              onClick={() => void resolve(report.id)}
+                            >
+                              Рассмотрена
+                            </button>
+                          ) : (
+                            <span className="muted small">{date(report.resolved_at ?? null)}</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination next={state.data.next_cursor} history={history} onPage={page} />
+          </>
+        )
+      )}
+    </section>
   );
 }
 
@@ -604,7 +767,9 @@ function ProfilesPanel({
                       <td>
                         {shortDay(item.move_in_from)} — {shortDay(item.move_in_to)}
                       </td>
-                      <td>{item.search_status === 'paused' ? 'На паузе' : 'Ищет'}</td>
+                      <td>
+                        {{ searching: 'Ищет', paused: 'На паузе', found: 'Сосед найден' }[item.search_status]}
+                      </td>
                       <td>{date(item.updated_at)}</td>
                       <td>
                         <div className="admin-row-actions">
@@ -763,6 +928,7 @@ function Dashboard() {
             {(
               [
                 { key: 'overview', title: 'Обзор' },
+                { key: 'reports', title: 'Жалобы' },
                 { key: 'users', title: 'Пользователи' },
                 { key: 'profiles', title: 'Анкеты' },
                 { key: 'databases', title: 'Базы данных' },
@@ -781,6 +947,12 @@ function Dashboard() {
           </nav>
           {tab === 'overview' ? (
             <Overview revision={revision} />
+          ) : tab === 'reports' ? (
+            <ReportsPanel
+              revision={revision}
+              onEdit={setEditing}
+              onChanged={() => setRevision((value) => value + 1)}
+            />
           ) : tab === 'users' ? (
             <UsersPanel revision={revision} onEdit={setEditing} />
           ) : tab === 'profiles' ? (

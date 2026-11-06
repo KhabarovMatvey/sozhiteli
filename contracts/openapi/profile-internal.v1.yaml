@@ -154,6 +154,10 @@ components:
         - questionnaire_version
         - habits
         - search_status
+        - scenario
+        - accepts_room
+        - place_note
+        - required_habits
         - updated_at
       properties:
         display_name:
@@ -195,7 +199,24 @@ components:
             type: string
         search_status:
           type: string
-          enum: [searching, paused]
+          enum: [searching, paused, found]
+        scenario:
+          type: string
+          enum: [pair, room_offer]
+        accepts_room:
+          type: boolean
+        utilities_rub:
+          type: integer
+          format: int32
+        deposit_rub:
+          type: integer
+          format: int32
+        place_note:
+          type: string
+        required_habits:
+          type: array
+          items:
+            type: string
         updated_at:
           type: string
           format: date-time

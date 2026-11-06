@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Candidate struct {
@@ -29,6 +30,12 @@ type Candidate struct {
 	SearchStatus         string
 	ProfileUpdatedAt     time.Time
 	SyncedAt             time.Time
+	Scenario             string
+	AcceptsRoom          bool
+	UtilitiesRub         pgtype.Int4
+	DepositRub           pgtype.Int4
+	PlaceNote            string
+	RequiredHabits       []string
 }
 
 type CandidateView struct {

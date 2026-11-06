@@ -10,11 +10,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getCandidate = `-- name: GetCandidate :one
 
-SELECT user_id, source_version, display_name, birth_year, gender, occupation, city_id, districts, budget_min_rub, budget_max_rub, move_in_from, move_in_to, roommate_gender, questionnaire_version, habits, search_status, profile_updated_at, synced_at
+SELECT user_id, source_version, display_name, birth_year, gender, occupation, city_id, districts, budget_min_rub, budget_max_rub, move_in_from, move_in_to, roommate_gender, questionnaire_version, habits, search_status, profile_updated_at, synced_at, scenario, accepts_room, utilities_rub, deposit_rub, place_note, required_habits
 FROM candidate
 WHERE user_id = $1
 `
@@ -43,12 +44,18 @@ func (q *Queries) GetCandidate(ctx context.Context, userID uuid.UUID) (Candidate
 		&i.SearchStatus,
 		&i.ProfileUpdatedAt,
 		&i.SyncedAt,
+		&i.Scenario,
+		&i.AcceptsRoom,
+		&i.UtilitiesRub,
+		&i.DepositRub,
+		&i.PlaceNote,
+		&i.RequiredHabits,
 	)
 	return i, err
 }
 
 const listCandidatesByID = `-- name: ListCandidatesByID :many
-SELECT user_id, source_version, display_name, birth_year, gender, occupation, city_id, districts, budget_min_rub, budget_max_rub, move_in_from, move_in_to, roommate_gender, questionnaire_version, habits, search_status, profile_updated_at, synced_at
+SELECT user_id, source_version, display_name, birth_year, gender, occupation, city_id, districts, budget_min_rub, budget_max_rub, move_in_from, move_in_to, roommate_gender, questionnaire_version, habits, search_status, profile_updated_at, synced_at, scenario, accepts_room, utilities_rub, deposit_rub, place_note, required_habits
 FROM candidate
 WHERE user_id = ANY ($1::uuid[])
 `
@@ -82,6 +89,12 @@ func (q *Queries) ListCandidatesByID(ctx context.Context, userIds []uuid.UUID) (
 			&i.SearchStatus,
 			&i.ProfileUpdatedAt,
 			&i.SyncedAt,
+			&i.Scenario,
+			&i.AcceptsRoom,
+			&i.UtilitiesRub,
+			&i.DepositRub,
+			&i.PlaceNote,
+			&i.RequiredHabits,
 		); err != nil {
 			return nil, err
 		}
@@ -94,7 +107,7 @@ func (q *Queries) ListCandidatesByID(ctx context.Context, userIds []uuid.UUID) (
 }
 
 const listFeed = `-- name: ListFeed :many
-SELECT user_id, source_version, display_name, birth_year, gender, occupation, city_id, districts, budget_min_rub, budget_max_rub, move_in_from, move_in_to, roommate_gender, questionnaire_version, habits, search_status, profile_updated_at, synced_at
+SELECT user_id, source_version, display_name, birth_year, gender, occupation, city_id, districts, budget_min_rub, budget_max_rub, move_in_from, move_in_to, roommate_gender, questionnaire_version, habits, search_status, profile_updated_at, synced_at, scenario, accepts_room, utilities_rub, deposit_rub, place_note, required_habits
 FROM candidate c
 WHERE c.search_status = 'searching'
   AND c.city_id = $1
@@ -105,9 +118,26 @@ WHERE c.search_status = 'searching'
   AND c.move_in_to >= $6
   AND ($7::text = 'any' OR c.gender = $8::text)
   AND (c.roommate_gender = 'any' OR c.gender = $8::text)
-  AND (c.profile_updated_at, c.user_id) < ($9::timestamptz, $10::uuid)
+  -- Сценарии: pair - pair; room_offer - pair, готовый заехать в снятую квартиру.
+  AND (($9::text = 'pair' AND c.scenario = 'pair')
+    OR ($9::text = 'room_offer' AND c.scenario = 'pair' AND c.accepts_room)
+    OR ($9::text = 'pair' AND $10::boolean AND c.scenario = 'room_offer'))
+  -- Обязательные вопросы обеих сторон: разный ответ исключает кандидата,
+  -- отсутствие ответа - нет.
+  AND NOT EXISTS (SELECT 1
+                  FROM unnest($11::text[]) AS q(code)
+                  WHERE c.habits ? q.code
+                    AND $12::jsonb ? q.code
+                    AND c.habits ->> q.code <> $12::jsonb ->> q.code)
+  AND NOT EXISTS (SELECT 1
+                  FROM unnest(c.required_habits) AS q(code)
+                  WHERE c.habits ? q.code
+                    AND $12::jsonb ? q.code
+                    AND c.habits ->> q.code <> $12::jsonb ->> q.code)
+  AND ($13::text IS NULL OR strpos(lower(c.districts), lower($13::text)) > 0)
+  AND (c.profile_updated_at, c.user_id) < ($14::timestamptz, $15::uuid)
 ORDER BY c.profile_updated_at DESC, c.user_id DESC
-LIMIT $11
+LIMIT $16
 `
 
 type ListFeedParams struct {
@@ -119,6 +149,11 @@ type ListFeedParams struct {
 	MoveInFrom           time.Time
 	ViewerRoommateGender string
 	ViewerGender         string
+	ViewerScenario       string
+	ViewerAcceptsRoom    bool
+	ViewerRequired       []string
+	ViewerHabits         []byte
+	District             pgtype.Text
 	AfterUpdatedAt       time.Time
 	AfterUserID          uuid.UUID
 	PageSize             int32
@@ -138,6 +173,11 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]Candidate
 		arg.MoveInFrom,
 		arg.ViewerRoommateGender,
 		arg.ViewerGender,
+		arg.ViewerScenario,
+		arg.ViewerAcceptsRoom,
+		arg.ViewerRequired,
+		arg.ViewerHabits,
+		arg.District,
 		arg.AfterUpdatedAt,
 		arg.AfterUserID,
 		arg.PageSize,
@@ -168,6 +208,12 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]Candidate
 			&i.SearchStatus,
 			&i.ProfileUpdatedAt,
 			&i.SyncedAt,
+			&i.Scenario,
+			&i.AcceptsRoom,
+			&i.UtilitiesRub,
+			&i.DepositRub,
+			&i.PlaceNote,
+			&i.RequiredHabits,
 		); err != nil {
 			return nil, err
 		}

@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"sozhiteli.internal/matching/internal/profileclient"
@@ -194,9 +195,29 @@ func apply(ctx context.Context, queries *store.Queries, item profileclient.Profi
 		Habits:               habits,
 		SearchStatus:         string(p.SearchStatus),
 		ProfileUpdatedAt:     p.UpdatedAt,
+		Scenario:             string(p.Scenario),
+		AcceptsRoom:          p.AcceptsRoom,
+		UtilitiesRub:         nullableInt(p.UtilitiesRub),
+		DepositRub:           nullableInt(p.DepositRub),
+		PlaceNote:            p.PlaceNote,
+		RequiredHabits:       nonNil(p.RequiredHabits),
 	})
 	if err != nil {
 		return fmt.Errorf("upsert candidate %s: %w", item.UserId, err)
 	}
 	return nil
+}
+
+func nullableInt(v *int32) pgtype.Int4 {
+	if v == nil {
+		return pgtype.Int4{}
+	}
+	return pgtype.Int4{Int32: *v, Valid: true}
+}
+
+func nonNil(codes []string) []string {
+	if codes == nil {
+		return []string{}
+	}
+	return codes
 }

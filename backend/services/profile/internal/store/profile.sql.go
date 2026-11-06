@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const deleteProfile = `-- name: DeleteProfile :execrows
@@ -28,7 +29,7 @@ func (q *Queries) DeleteProfile(ctx context.Context, userID uuid.UUID) (int64, e
 
 const getProfile = `-- name: GetProfile :one
 
-SELECT user_id, display_name, birth_year, gender, occupation, city_id, districts, budget_min_rub, budget_max_rub, move_in_from, move_in_to, roommate_gender, questionnaire_version, habits, search_status, created_at, updated_at, feed_version
+SELECT user_id, display_name, birth_year, gender, occupation, city_id, districts, budget_min_rub, budget_max_rub, move_in_from, move_in_to, roommate_gender, questionnaire_version, habits, search_status, created_at, updated_at, feed_version, scenario, accepts_room, utilities_rub, deposit_rub, place_note, required_habits
 FROM profile
 WHERE user_id = $1
 `
@@ -56,6 +57,12 @@ func (q *Queries) GetProfile(ctx context.Context, userID uuid.UUID) (Profile, er
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.FeedVersion,
+		&i.Scenario,
+		&i.AcceptsRoom,
+		&i.UtilitiesRub,
+		&i.DepositRub,
+		&i.PlaceNote,
+		&i.RequiredHabits,
 	)
 	return i, err
 }
@@ -63,12 +70,15 @@ func (q *Queries) GetProfile(ctx context.Context, userID uuid.UUID) (Profile, er
 const upsertProfile = `-- name: UpsertProfile :one
 INSERT INTO profile (user_id, display_name, birth_year, gender, occupation, city_id, districts,
                      budget_min_rub, budget_max_rub, move_in_from, move_in_to, roommate_gender,
-                     questionnaire_version, habits, search_status)
+                     questionnaire_version, habits, search_status, scenario, accepts_room,
+                     utilities_rub, deposit_rub, place_note, required_habits)
 VALUES ($1, $2, $3, $4,
         $5, $6, $7, $8,
         $9, $10, $11,
         $12, $13, $14,
-        $15)
+        $15, $16, $17,
+        $18, $19, $20,
+        $21::text[])
 ON CONFLICT (user_id) DO UPDATE
     SET display_name          = EXCLUDED.display_name,
         birth_year            = EXCLUDED.birth_year,
@@ -83,8 +93,14 @@ ON CONFLICT (user_id) DO UPDATE
         roommate_gender       = EXCLUDED.roommate_gender,
         questionnaire_version = EXCLUDED.questionnaire_version,
         habits                = EXCLUDED.habits,
-        search_status         = EXCLUDED.search_status
-RETURNING user_id, display_name, birth_year, gender, occupation, city_id, districts, budget_min_rub, budget_max_rub, move_in_from, move_in_to, roommate_gender, questionnaire_version, habits, search_status, created_at, updated_at, feed_version
+        search_status         = EXCLUDED.search_status,
+        scenario              = EXCLUDED.scenario,
+        accepts_room          = EXCLUDED.accepts_room,
+        utilities_rub         = EXCLUDED.utilities_rub,
+        deposit_rub           = EXCLUDED.deposit_rub,
+        place_note            = EXCLUDED.place_note,
+        required_habits       = EXCLUDED.required_habits
+RETURNING user_id, display_name, birth_year, gender, occupation, city_id, districts, budget_min_rub, budget_max_rub, move_in_from, move_in_to, roommate_gender, questionnaire_version, habits, search_status, created_at, updated_at, feed_version, scenario, accepts_room, utilities_rub, deposit_rub, place_note, required_habits
 `
 
 type UpsertProfileParams struct {
@@ -103,6 +119,12 @@ type UpsertProfileParams struct {
 	QuestionnaireVersion int32
 	Habits               []byte
 	SearchStatus         string
+	Scenario             string
+	AcceptsRoom          bool
+	UtilitiesRub         pgtype.Int4
+	DepositRub           pgtype.Int4
+	PlaceNote            string
+	RequiredHabits       []string
 }
 
 // Создаёт или полностью заменяет анкету. created_at сохраняется при замене;
@@ -124,6 +146,12 @@ func (q *Queries) UpsertProfile(ctx context.Context, arg UpsertProfileParams) (P
 		arg.QuestionnaireVersion,
 		arg.Habits,
 		arg.SearchStatus,
+		arg.Scenario,
+		arg.AcceptsRoom,
+		arg.UtilitiesRub,
+		arg.DepositRub,
+		arg.PlaceNote,
+		arg.RequiredHabits,
 	)
 	var i Profile
 	err := row.Scan(
@@ -145,6 +173,12 @@ func (q *Queries) UpsertProfile(ctx context.Context, arg UpsertProfileParams) (P
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.FeedVersion,
+		&i.Scenario,
+		&i.AcceptsRoom,
+		&i.UtilitiesRub,
+		&i.DepositRub,
+		&i.PlaceNote,
+		&i.RequiredHabits,
 	)
 	return i, err
 }

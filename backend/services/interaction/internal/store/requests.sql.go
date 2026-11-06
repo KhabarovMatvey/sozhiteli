@@ -63,6 +63,11 @@ SELECT r.id,
        c.value AS counterpart_value
 FROM contact_request r
          LEFT JOIN contact c ON c.user_id = r.sender_id AND r.status = 'accepted'
+    -- Блокировка в любую сторону скрывает уже раскрытый контакт.
+    AND NOT EXISTS (SELECT 1
+                    FROM user_block b
+                    WHERE (b.blocker_id = r.sender_id AND b.blocked_id = r.recipient_id)
+                       OR (b.blocker_id = r.recipient_id AND b.blocked_id = r.sender_id))
 WHERE r.recipient_id = $1
   AND ($2::uuid IS NULL OR r.sender_id = $2::uuid)
   AND (r.created_at, r.id) < ($3::timestamptz, $4::uuid)
@@ -135,6 +140,11 @@ SELECT r.id,
        c.value AS counterpart_value
 FROM contact_request r
          LEFT JOIN contact c ON c.user_id = r.recipient_id AND r.status = 'accepted'
+    -- Блокировка в любую сторону скрывает уже раскрытый контакт.
+    AND NOT EXISTS (SELECT 1
+                    FROM user_block b
+                    WHERE (b.blocker_id = r.sender_id AND b.blocked_id = r.recipient_id)
+                       OR (b.blocker_id = r.recipient_id AND b.blocked_id = r.sender_id))
 WHERE r.sender_id = $1
   AND ($2::uuid IS NULL OR r.recipient_id = $2::uuid)
   AND (r.created_at, r.id) < ($3::timestamptz, $4::uuid)

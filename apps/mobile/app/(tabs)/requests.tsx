@@ -20,6 +20,8 @@ import {
   useTheme,
 } from '@/components/ui';
 import { useApi } from '@/lib/api';
+import { AgreementEditor } from '@/components/agreement-editor';
+import { useBlocks } from '@/lib/blocks';
 
 type Direction = InteractionSchemas['Direction'];
 type ContactRequest = InteractionSchemas['ContactRequest'];
@@ -33,6 +35,8 @@ const statusChips: Record<ContactRequest['status'], [string, ChipTone]> = {
 
 function RequestsList({ direction }: { direction: Direction }) {
   const api = useApi();
+  const blocks = useBlocks();
+  const [openAgreement, setOpenAgreement] = useState<string | null>(null);
   const t = useTheme();
   const [items, setItems] = useState<ContactRequest[]>([]);
   const [cards, setCards] = useState<Record<string, Card>>({});
@@ -89,7 +93,9 @@ function RequestsList({ direction }: { direction: Direction }) {
 
   if (problem) return <ErrorBox problem={problem} />;
   if (loading && items.length === 0) return <Loading />;
-  if (items.length === 0) {
+  // Запросы с заблокированными не показываются: блокировка их уже закрыла.
+  const visible = items.filter((r) => !blocks.ids?.has(r.counterpart_id));
+  if (visible.length === 0 && !next) {
     return direction === 'incoming' ? (
       <Note kind="empty" icon="📭">
         <T bold size={18}>
@@ -119,7 +125,7 @@ function RequestsList({ direction }: { direction: Direction }) {
           )}
         </ErrorBox>
       )}
-      {items.map((r) => {
+      {visible.map((r) => {
         const card = cards[r.counterpart_id];
         const contact = r.status === 'accepted' ? r.counterpart_contact : undefined;
         const [statusText, statusTone] = statusChips[r.status];
@@ -169,6 +175,13 @@ function RequestsList({ direction }: { direction: Direction }) {
                 </Text>
               </Note>
             )}
+            {contact && (
+              <Button
+                title={openAgreement === r.id ? 'Скрыть договорённости' : 'Договорённости'}
+                onPress={() => setOpenAgreement(openAgreement === r.id ? null : r.id)}
+              />
+            )}
+            {openAgreement === r.id && <AgreementEditor requestId={r.id} />}
             {r.status === 'pending' && direction === 'incoming' && (
               <View style={{ gap: 8 }}>
                 <Button

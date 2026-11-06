@@ -49,7 +49,7 @@ docker compose -f deploy/compose/compose.yaml up -d --build --wait profile
 | ---------------------------- | ------------------------------------------- |
 | Profile / profile_db         | `profile`, `city`, `profile_deletion`        |
 | Matching / matching_db       | `candidate`, `candidate_view`, `sync_state`  |
-| Interaction / interaction_db | `contact_request`, `contact`                |
+| Interaction / interaction_db | `contact_request`, `contact`, `user_block`, `report` |
 
 Показаны размер базы, число строк, имена разрешённых колонок и строки с постраничной загрузкой.
 В `contact` видны только `user_id`, `kind`, `updated_at`: сами значения контактов скрыты. SQL-запросы
@@ -65,6 +65,12 @@ SQL. Системные таблицы, credentials Keycloak, секреты п�
 интервала синхронизации. Каждое изменение записывается в журнал сервиса Profile: действие, идентификатор
 администратора и идентификатор пользователя. Значения анкеты в журнал не попадают.
 
+Вкладка «Жалобы» — очередь жалоб пользователей, открытые и рассмотренные отдельно. В строке видны
+причина, комментарий автора, идентификаторы обоих участников и число открытых жалоб на того же человека.
+Рассмотрение ручное: «Открыть анкету» ведёт в редактор анкеты, где её можно исправить или удалить,
+затем жалоба отмечается рассмотренной. Комментарий жалобы виден только в этой вкладке: в общем
+просмотре таблицы `report` его нет.
+
 Сам администратор может удалить свою анкету, а учётные записи в панели не создаются и не удаляются:
 это по-прежнему делается в консоли Keycloak.
 
@@ -74,6 +80,9 @@ SQL. Системные таблицы, credentials Keycloak, секреты п�
 - `GET /api/profile/v1/admin/profiles` — все анкеты; параметры `search`, `limit`, `cursor`.
 - `GET|PUT|DELETE /api/profile/v1/admin/users/{user_id}/profile` — анкета пользователя: просмотр,
   создание или замена (`PUT`), удаление (`DELETE`, ответ `204`).
+- `GET /api/interaction/v1/admin/reports` — очередь жалоб; параметры `status` (`open` по умолчанию,
+  `resolved`), `limit`, `cursor`.
+- `POST /api/interaction/v1/admin/reports/{report_id}/resolve` — отметить жалобу рассмотренной.
 - `GET /api/{profile|matching|interaction}/v1/admin/database` — сводка базы и список таблиц.
 - `GET /api/{profile|matching|interaction}/v1/admin/tables/{table}` — строки; параметры `limit`, `cursor`.
 

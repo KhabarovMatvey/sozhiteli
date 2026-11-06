@@ -29,11 +29,15 @@ func TestAdminInteractionPagesKeepContactsPrivate(t *testing.T) {
 	expect(t, rec, http.StatusOK, "")
 	openapitest.AssertResponse(t, f.spec, req, rec)
 	database := decode[api.AdminDatabase](t, rec)
-	if database.Service != "interaction" || database.Database == "" || database.SizeBytes <= 0 || len(database.Tables) != 2 {
+	if database.Service != "interaction" || database.Database == "" || database.SizeBytes <= 0 || len(database.Tables) != 4 {
 		t.Fatalf("database = %+v", database)
 	}
 	for _, table := range database.Tables {
-		if table.RowCount != 2 || slices.Contains(table.Columns, "value") {
+		wantRows := int64(0)
+		if table.Name == "contact" || table.Name == "contact_request" {
+			wantRows = 2
+		}
+		if table.RowCount != wantRows || slices.Contains(table.Columns, "value") || slices.Contains(table.Columns, "comment") {
 			t.Errorf("table = %+v", table)
 		}
 	}

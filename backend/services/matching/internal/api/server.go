@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"sozhiteli.internal/matching/internal/compare"
 	"sozhiteli.internal/matching/internal/store"
@@ -91,6 +93,11 @@ func (s *Server) ListCandidates(ctx context.Context, request ListCandidatesReque
 		MoveInTo:             v.MoveInTo,
 		ViewerGender:         v.Gender,
 		ViewerRoommateGender: v.RoommateGender,
+		ViewerScenario:       v.Scenario,
+		ViewerAcceptsRoom:    v.AcceptsRoom,
+		ViewerRequired:       v.RequiredHabits,
+		ViewerHabits:         v.Habits,
+		District:             district(request.Params.District),
 		AfterUpdatedAt:       after.UpdatedAt,
 		AfterUserID:          after.UserID,
 		PageSize:             pageSize + 1,
@@ -163,6 +170,8 @@ func (s *Server) GetCandidate(ctx context.Context, request GetCandidateRequestOb
 			BudgetOverlap:    conditions.BudgetOverlap,
 			MoveInOverlap:    conditions.MoveInOverlap,
 			RoommateGenderOk: conditions.RoommateGenderOK,
+			ScenarioOk:       conditions.ScenarioOK,
+			RequiredHabitsOk: conditions.RequiredHabitsOK,
 		},
 		Habits: habitComparisons(viewer, candidate),
 	}, nil
@@ -206,4 +215,11 @@ func (s *Server) LookupCandidates(ctx context.Context, request LookupCandidatesR
 		items = append(items, card(viewer, candidate, now))
 	}
 	return LookupCandidates200JSONResponse{Items: items}, nil
+}
+
+func district(filter *string) pgtype.Text {
+	if filter == nil || strings.TrimSpace(*filter) == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: strings.TrimSpace(*filter), Valid: true}
 }

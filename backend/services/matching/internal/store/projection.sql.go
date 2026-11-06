@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const advanceSyncCursor = `-- name: AdvanceSyncCursor :execrows
@@ -73,12 +74,15 @@ const upsertCandidate = `-- name: UpsertCandidate :exec
 INSERT INTO candidate (user_id, source_version, display_name, birth_year, gender, occupation,
                        city_id, districts, budget_min_rub, budget_max_rub, move_in_from,
                        move_in_to, roommate_gender, questionnaire_version, habits,
-                       search_status, profile_updated_at)
+                       search_status, profile_updated_at, scenario, accepts_room, utilities_rub,
+                       deposit_rub, place_note, required_habits)
 VALUES ($1, $2, $3, $4,
         $5, $6, $7, $8,
         $9, $10, $11,
         $12, $13, $14,
-        $15, $16, $17)
+        $15, $16, $17,
+        $18, $19, $20, $21,
+        $22, $23::text[])
 ON CONFLICT (user_id) DO UPDATE
     SET source_version        = EXCLUDED.source_version,
         display_name          = EXCLUDED.display_name,
@@ -96,6 +100,12 @@ ON CONFLICT (user_id) DO UPDATE
         habits                = EXCLUDED.habits,
         search_status         = EXCLUDED.search_status,
         profile_updated_at    = EXCLUDED.profile_updated_at,
+        scenario              = EXCLUDED.scenario,
+        accepts_room          = EXCLUDED.accepts_room,
+        utilities_rub         = EXCLUDED.utilities_rub,
+        deposit_rub           = EXCLUDED.deposit_rub,
+        place_note            = EXCLUDED.place_note,
+        required_habits       = EXCLUDED.required_habits,
         synced_at             = now()
 WHERE candidate.source_version <= EXCLUDED.source_version
 `
@@ -118,6 +128,12 @@ type UpsertCandidateParams struct {
 	Habits               []byte
 	SearchStatus         string
 	ProfileUpdatedAt     time.Time
+	Scenario             string
+	AcceptsRoom          bool
+	UtilitiesRub         pgtype.Int4
+	DepositRub           pgtype.Int4
+	PlaceNote            string
+	RequiredHabits       []string
 }
 
 // Идемпотентно: повторная или устаревшая запись не перезаписывает более новую.
@@ -140,6 +156,12 @@ func (q *Queries) UpsertCandidate(ctx context.Context, arg UpsertCandidateParams
 		arg.Habits,
 		arg.SearchStatus,
 		arg.ProfileUpdatedAt,
+		arg.Scenario,
+		arg.AcceptsRoom,
+		arg.UtilitiesRub,
+		arg.DepositRub,
+		arg.PlaceNote,
+		arg.RequiredHabits,
 	)
 	return err
 }

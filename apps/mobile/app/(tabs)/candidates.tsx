@@ -2,25 +2,42 @@ import type { MatchingSchemas, Problem } from '@sozhiteli/api-client';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 
-import { Button, CandidateTile, ErrorBox, Loading, Note, Screen, T } from '@/components/ui';
+import { Button, CandidateTile, Choice, ErrorBox, Field, Loading, Note, Screen, T } from '@/components/ui';
 import { useApi } from '@/lib/api';
+import { useBlocks } from '@/lib/blocks';
+import { useFavorites } from '@/lib/favorites';
 import { useCities } from '@/lib/reference';
 
 type Card = MatchingSchemas['CandidateCard'];
 
 export default function CandidatesScreen() {
   const api = useApi();
+  const blocks = useBlocks();
+  const favorites = useFavorites();
+  const [mode, setMode] = useState<'feed' | 'favorites'>('feed');
+  const [saved, setSaved] = useState<Card[]>([]);
+  const favoritesKey = [...(favorites.ids ?? [])].join(',');
+
+  useEffect(() => {
+    if (mode !== 'favorites' || !favoritesKey) return;
+    api.matching
+      .POST('/v1/candidates/lookup', { body: { user_ids: favoritesKey.split(',').slice(0, 50) } })
+      .then(({ data }) => setSaved(data?.items ?? []));
+  }, [api, mode, favoritesKey]);
   const cities = useCities();
   const [items, setItems] = useState<Card[]>([]);
   const [next, setNext] = useState<string | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [districtDraft, setDistrictDraft] = useState('');
+  const [district, setDistrict] = useState('');
 
   const load = useCallback(
     async (cursor: string | null) => {
       setLoading(true);
+      const filter = district.length >= 2 ? { district } : {};
       const { data, error } = await api.matching.GET('/v1/candidates', {
-        params: { query: cursor ? { cursor } : {} },
+        params: { query: cursor ? { cursor, ...filter } : filter },
       });
       setLoading(false);
       if (!data) {
@@ -31,7 +48,7 @@ export default function CandidatesScreen() {
       setItems((prev) => (cursor ? [...prev, ...data.items] : data.items));
       setNext(data.next_cursor);
     },
-    [api],
+    [api, district],
   );
 
   useEffect(() => {
@@ -66,10 +83,67 @@ export default function CandidatesScreen() {
     );
   }
   if (loading && items.length === 0) return <Loading />;
+  // Заблокированных убирает клиент: выдача Matching о блокировках не знает.
+  const visible = items.filter((card) => !blocks.ids?.has(card.user_id));
+
+  const modeSwitch = (
+    <Choice
+      options={[
+        ['feed', 'Подходящие'],
+        ['favorites', `Избранное${favorites.ids?.size ? ` (${favorites.ids.size})` : ''}`],
+      ]}
+      value={mode}
+      onChange={setMode}
+    />
+  );
+
+  if (mode === 'favorites') {
+    const shown = favoritesKey ? saved.filter((c) => favorites.ids?.has(c.user_id)) : [];
+    return (
+      <Screen>
+        {modeSwitch}
+        {shown.length === 0 ? (
+          <Note kind="empty" icon="☆">
+            <T muted>Сохраняйте интересных людей кнопкой «В избранное» на их карточке.</T>
+          </Note>
+        ) : (
+          shown.map((card) => (
+            <CandidateTile
+              key={card.user_id}
+              card={card}
+              cities={cities.data}
+              onPress={() =>
+                router.push({ pathname: '/candidate/[userId]', params: { userId: card.user_id } })
+              }
+            />
+          ))
+        )}
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
-      {items.length === 0 ? (
+      {modeSwitch}
+      <Field
+        label="Район"
+        placeholder="Например: центр"
+        value={districtDraft}
+        maxLength={50}
+        returnKeyType="search"
+        onChangeText={setDistrictDraft}
+        onSubmitEditing={() => setDistrict(districtDraft.trim())}
+      />
+      {district ? (
+        <Button
+          title={'Сбросить фильтр «' + district + '»'}
+          onPress={() => {
+            setDistrictDraft('');
+            setDistrict('');
+          }}
+        />
+      ) : null}
+      {visible.length === 0 ? (
         <Note kind="empty" icon="🔍">
           <T bold size={18}>
             Пока никто не подходит
@@ -84,7 +158,7 @@ export default function CandidatesScreen() {
           Подходят по городу, бюджету, срокам и полу соседа · новые анкеты сверху
         </T>
       )}
-      {items.map((card) => (
+      {visible.map((card) => (
         <CandidateTile
           key={card.user_id}
           card={card}

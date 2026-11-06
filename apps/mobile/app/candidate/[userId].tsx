@@ -1,5 +1,13 @@
 import type { InteractionSchemas, MatchingSchemas, Problem } from '@sozhiteli/api-client';
-import { contactLabel, contactUrl, formatBudget, optionLabel, questionTitle } from '@sozhiteli/api-client';
+import {
+  contactLabel,
+  contactUrl,
+  formatBudget,
+  formatRub,
+  optionLabel,
+  placeCosts,
+  questionTitle,
+} from '@sozhiteli/api-client';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
@@ -18,7 +26,10 @@ import {
   candidateTitle,
   useTheme,
 } from '@/components/ui';
+import { SafetyActions } from '@/components/safety-actions';
 import { useApi } from '@/lib/api';
+import { useBlocks } from '@/lib/blocks';
+import { useFavorites } from '@/lib/favorites';
 import { useCities, useQuestionnaire } from '@/lib/reference';
 
 type Detail = MatchingSchemas['CandidateDetail'];
@@ -30,6 +41,8 @@ const conditionLabels: [keyof Detail['conditions'], string][] = [
   ['budget_overlap', 'Бюджеты пересекаются'],
   ['move_in_overlap', 'Сроки заселения пересекаются'],
   ['roommate_gender_ok', 'Подходит по полу соседа'],
+  ['scenario_ok', 'Подходит по сценарию поиска'],
+  ['required_habits_ok', 'Обязательные привычки совпадают'],
 ];
 
 // Сначала различия: о них стоит договориться заранее (как на web).
@@ -51,7 +64,7 @@ function Mark({ result }: { result: Habit['result'] | 'yes' | 'no' }) {
   );
 }
 
-function ContactExchange({ detail }: { detail: Detail }) {
+function ContactExchange({ detail, blocked }: { detail: Detail; blocked: boolean }) {
   const api = useApi();
   const t = useTheme();
   const userId = detail.card.user_id;
@@ -76,7 +89,7 @@ function ContactExchange({ detail }: { detail: Detail }) {
     return () => {
       cancelled = true;
     };
-  }, [api, userId]);
+  }, [api, userId, blocked]);
 
   async function send() {
     setSending(true);
@@ -97,10 +110,13 @@ function ContactExchange({ detail }: { detail: Detail }) {
         {formatBudget(detail.card.budget_min_rub, detail.card.budget_max_rub)}
       </Text>
       <T muted size={13}>
-        в месяц на человека, без коммунальных
+        {placeCosts(detail.card)
+          ? `аренда за место; при заселении ${formatRub(placeCosts(detail.card)!.moveIn)}`
+          : 'в месяц на человека, без коммунальных'}
       </T>
       {request === undefined && !problem && <Loading />}
-      {contact && (
+      {blocked && <Note>Вы заблокировали этого человека: запросы и контакты недоступны.</Note>}
+      {!blocked && contact && (
         <Note kind="ok">
           <T bold>Вы обменялись контактами</T>
           <Text
@@ -111,17 +127,17 @@ function ContactExchange({ detail }: { detail: Detail }) {
           </Text>
         </Note>
       )}
-      {request?.status === 'pending' && request.direction === 'outgoing' && (
+      {!blocked && request?.status === 'pending' && request.direction === 'outgoing' && (
         <Note>Запрос отправлен. Контакт появится здесь, когда кандидат его примет.</Note>
       )}
-      {request?.status === 'pending' && request.direction === 'incoming' && (
+      {!blocked && request?.status === 'pending' && request.direction === 'incoming' && (
         <>
           <Note>Этот человек прислал вам запрос на обмен контактами.</Note>
           <Button primary title="Ответить в «Запросах»" onPress={() => router.navigate('/requests')} />
         </>
       )}
-      {request?.status === 'declined' && <T muted>Запрос отклонён.</T>}
-      {request === null && (
+      {!blocked && request?.status === 'declined' && <T muted>Запрос отклонён.</T>}
+      {!blocked && request === null && (
         <>
           <Button
             primary
@@ -153,6 +169,20 @@ export default function CandidateScreen() {
   const t = useTheme();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
+  const blocks = useBlocks();
+  const favorites = useFavorites();
+  const [blockedOverride, setBlockedOverride] = useState<boolean | null>(null);
+  const saved = favorites.ids?.has(userId) ?? false;
+
+  async function toggleFavorite() {
+    const params = { params: { path: { user_id: userId } } };
+    const { error } = saved
+      ? await api.interaction.DELETE('/v1/favorites/{user_id}', params)
+      : await api.interaction.PUT('/v1/favorites/{user_id}', params);
+    if (error) setProblem(error);
+    else await favorites.reload();
+  }
+  const blocked = blockedOverride ?? blocks.ids?.has(userId) ?? false;
 
   useEffect(() => {
     let cancelled = false;
@@ -192,7 +222,14 @@ export default function CandidateScreen() {
         </View>
       </View>
 
-      <ContactExchange detail={detail} />
+      {favorites.ids && !blocked && (
+        <Button
+          title={saved ? '★ В избранном — убрать' : '☆ В избранное'}
+          onPress={() => void toggleFavorite()}
+        />
+      )}
+
+      <ContactExchange detail={detail} blocked={blocked} />
 
       <Panel title="Характеристики">
         <CandidateFacts card={detail.card} cities={cities.data} />
@@ -209,7 +246,8 @@ export default function CandidateScreen() {
 
       <Panel title="Бытовые привычки">
         <T muted size={13}>
-          Сначала — различия: о них стоит договориться заранее.
+          Сначала — различия: о них стоит договориться заранее. «–» — кто-то из вас не ответил на вопрос:
+          уточните при знакомстве.
         </T>
         {habits.map((h) => (
           <View key={h.question_code} style={[styles.habit, { borderColor: t.line }]}>
@@ -217,6 +255,16 @@ export default function CandidateScreen() {
               <Mark result={h.result} />
               <View style={{ flex: 1 }}>
                 <T bold>{questionTitle(q, h.question_code)}</T>
+                {(h.required_by_me || h.required_by_them) && (
+                  <T muted size={12}>
+                    обязательно
+                    {h.required_by_me && h.required_by_them
+                      ? ' для обоих'
+                      : h.required_by_me
+                        ? ' для вас'
+                        : ' для кандидата'}
+                  </T>
+                )}
               </View>
             </View>
             <View style={styles.answers}>
@@ -230,6 +278,10 @@ export default function CandidateScreen() {
           </View>
         ))}
       </Panel>
+
+      {blocks.ids && (
+        <SafetyActions userId={detail.card.user_id} blocked={blocked} onBlockedChange={setBlockedOverride} />
+      )}
     </Screen>
   );
 }

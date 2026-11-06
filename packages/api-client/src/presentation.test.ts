@@ -17,6 +17,10 @@ import {
   optionLabel,
   problemMessage,
   questionTitle,
+  placeCosts,
+  formatRub,
+  reportReasonLabel,
+  reportReasons,
   shortDay,
 } from './presentation';
 
@@ -127,5 +131,32 @@ describe('short texts for cards', () => {
     expect(matchTone(0, 0)).toBe('none');
     expect(matchLabel(4, 8)).toBe('Совпадает 4 из 8');
     expect(matchLabel(0, 0)).toBe('нет данных для сравнения');
+  });
+});
+
+describe('report reasons', () => {
+  it('covers every contract reason once and labels them', () => {
+    const codes = reportReasons.map((r) => r.code);
+    expect(new Set(codes).size).toBe(codes.length);
+    expect([...codes].sort()).toEqual(['commercial', 'fake', 'fraud', 'offensive', 'other']);
+    expect(reportReasonLabel('fraud')).toBe('Просит деньги или предоплату');
+  });
+
+  it('explains safety error codes', () => {
+    for (const code of ['blocked', 'block_limit', 'report_exists']) {
+      expect(problemMessage({ type: '', title: '', status: 409, code })).not.toBe(
+        problemMessage({ type: '', title: '', status: 409, code: 'unknown_code' }),
+      );
+    }
+  });
+});
+
+describe('free place costs', () => {
+  it('sums the move-in and monthly payments only for a free place', () => {
+    expect(
+      placeCosts({ scenario: 'room_offer', budget_min_rub: 12000, utilities_rub: 3000, deposit_rub: 12000 }),
+    ).toEqual({ rent: 12000, utilities: 3000, deposit: 12000, moveIn: 24000, monthly: 15000 });
+    expect(placeCosts({ scenario: 'pair', budget_min_rub: 12000 })).toBeNull();
+    expect(formatRub(12000)).toMatch(/^12\s000 ₽$/);
   });
 });

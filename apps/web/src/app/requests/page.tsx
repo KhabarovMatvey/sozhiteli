@@ -13,11 +13,13 @@ import {
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
+import { AgreementEditor } from '@/components/agreement-editor';
 import { Avatar } from '@/components/avatar';
 import { MatchChip, candidateTitle, cityName } from '@/components/candidate-summary';
 import { RequireAuth } from '@/components/require-auth';
 import { EmptyState, ErrorMessage, Loading } from '@/components/states';
 import { useApi } from '@/lib/api';
+import { useBlocks } from '@/lib/blocks';
 import { refreshIncomingCount, useIncomingCount } from '@/lib/incoming';
 import { useCities } from '@/lib/reference';
 
@@ -41,6 +43,8 @@ function RequestsList({ direction }: { direction: Direction }) {
   const [actionProblem, setActionProblem] = useState<Problem | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [openAgreement, setOpenAgreement] = useState<string | null>(null);
+  const blocks = useBlocks();
 
   const load = useCallback(
     async (cursor: string | null) => {
@@ -91,9 +95,12 @@ function RequestsList({ direction }: { direction: Direction }) {
     }
   }
 
+  // Запросы с заблокированными не показываются: блокировка их уже закрыла.
+  const visible = items.filter((r) => !blocks.ids?.has(r.counterpart_id));
+
   if (problem) return <ErrorMessage problem={problem} />;
   if (loading && items.length === 0) return <Loading />;
-  if (items.length === 0) {
+  if (visible.length === 0 && !next) {
     return direction === 'incoming' ? (
       <EmptyState icon="📭" title="Входящих запросов пока нет">
         <p className="muted">Когда кто-то захочет обменяться с вами контактами, запрос появится здесь.</p>
@@ -116,7 +123,7 @@ function RequestsList({ direction }: { direction: Direction }) {
           {actionProblem.code === 'contact_required' && <Link href="/contact">Указать контакт →</Link>}
         </div>
       )}
-      {items.map((r) => {
+      {visible.map((r) => {
         const card = cards[r.counterpart_id];
         const chip = statusChips[r.status];
         const contact = r.status === 'accepted' ? r.counterpart_contact : undefined;
@@ -161,6 +168,15 @@ function RequestsList({ direction }: { direction: Direction }) {
                   {contactLabel(contact)}
                 </a>
               )}
+              {contact && (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => setOpenAgreement(openAgreement === r.id ? null : r.id)}
+                >
+                  {openAgreement === r.id ? 'Скрыть договорённости' : 'Договорённости'}
+                </button>
+              )}
               {r.status === 'pending' && direction === 'incoming' && (
                 <>
                   <button
@@ -182,6 +198,11 @@ function RequestsList({ direction }: { direction: Direction }) {
                 </>
               )}
             </div>
+            {openAgreement === r.id && (
+              <div className="request-extra">
+                <AgreementEditor requestId={r.id} />
+              </div>
+            )}
           </article>
         );
       })}
@@ -193,6 +214,63 @@ function RequestsList({ direction }: { direction: Direction }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Заблокированные: здесь блокировку можно снять, не открывая анкету. */
+function BlockedList() {
+  const api = useApi();
+  const blocks = useBlocks();
+  const [cards, setCards] = useState<Record<string, Card>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [problem, setProblem] = useState<Problem | null>(null);
+  const ids = blocks.ids ? [...blocks.ids] : [];
+  const key = ids.join(',');
+
+  useEffect(() => {
+    if (!key) return;
+    api.matching
+      .POST('/v1/candidates/lookup', { body: { user_ids: key.split(',').slice(0, 50) } })
+      .then(({ data }) => setCards(Object.fromEntries((data?.items ?? []).map((c) => [c.user_id, c]))));
+  }, [api, key]);
+
+  async function unblock(id: string) {
+    setBusy(id);
+    setProblem(null);
+    const { response, error } = await api.interaction.DELETE('/v1/blocks/{user_id}', {
+      params: { path: { user_id: id } },
+    });
+    setBusy(null);
+    if (response.ok) await blocks.reload();
+    else setProblem(error ?? null);
+  }
+
+  if (ids.length === 0) return null;
+  return (
+    <section className="mt-24">
+      <h2 className="mb-12">Заблокированные</h2>
+      {problem && (
+        <div className="alert" role="alert">
+          <p>{problemMessage(problem)}</p>
+        </div>
+      )}
+      <div className="stack">
+        {ids.map((id) => {
+          const card = cards[id];
+          return (
+            <article key={id} className="panel request">
+              <Avatar id={id} name={card?.display_name ?? '?'} size="m" />
+              <span>{card ? candidateTitle(card) : <span className="muted">Анкета недоступна</span>}</span>
+              <div className="request-actions">
+                <button type="button" className="btn" disabled={busy === id} onClick={() => void unblock(id)}>
+                  Разблокировать
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -223,6 +301,7 @@ function RequestsScreen() {
         </button>
       </div>
       <RequestsList key={direction} direction={direction} />
+      <BlockedList />
     </>
   );
 }

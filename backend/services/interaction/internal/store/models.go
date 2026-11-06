@@ -11,6 +11,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Agreement struct {
+	RequestID uuid.UUID
+	Items     []byte
+	UpdatedBy uuid.UUID
+	UpdatedAt time.Time
+}
+
 type Contact struct {
 	UserID    uuid.UUID
 	Kind      string
@@ -25,4 +32,27 @@ type ContactRequest struct {
 	Status      string
 	CreatedAt   time.Time
 	RespondedAt pgtype.Timestamptz
+}
+
+type Favorite struct {
+	OwnerID   uuid.UUID
+	UserID    uuid.UUID
+	CreatedAt time.Time
+}
+
+type Report struct {
+	ID         uuid.UUID
+	ReporterID uuid.UUID
+	ReportedID uuid.UUID
+	Reason     string
+	Comment    string
+	Status     string
+	CreatedAt  time.Time
+	ResolvedAt pgtype.Timestamptz
+}
+
+type UserBlock struct {
+	BlockerID uuid.UUID
+	BlockedID uuid.UUID
+	CreatedAt time.Time
 }

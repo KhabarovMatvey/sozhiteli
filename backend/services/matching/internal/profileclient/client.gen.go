@@ -53,8 +53,27 @@ func (e ProfileSnapshotRoommateGender) Valid() bool {
 	}
 }
 
+// Defines values for ProfileSnapshotScenario.
+const (
+	Pair      ProfileSnapshotScenario = "pair"
+	RoomOffer ProfileSnapshotScenario = "room_offer"
+)
+
+// Valid indicates whether the value is a known member of the ProfileSnapshotScenario enum.
+func (e ProfileSnapshotScenario) Valid() bool {
+	switch e {
+	case Pair:
+		return true
+	case RoomOffer:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProfileSnapshotSearchStatus.
 const (
+	Found     ProfileSnapshotSearchStatus = "found"
 	Paused    ProfileSnapshotSearchStatus = "paused"
 	Searching ProfileSnapshotSearchStatus = "searching"
 )
@@ -62,6 +81,8 @@ const (
 // Valid indicates whether the value is a known member of the ProfileSnapshotSearchStatus enum.
 func (e ProfileSnapshotSearchStatus) Valid() bool {
 	switch e {
+	case Found:
+		return true
 	case Paused:
 		return true
 	case Searching:
@@ -104,10 +125,12 @@ type ProfileChangePage struct {
 
 // ProfileSnapshot Состояние анкеты. Отсутствует, если deleted = true.
 type ProfileSnapshot struct {
+	AcceptsRoom          bool                          `json:"accepts_room"`
 	BirthYear            int32                         `json:"birth_year"`
 	BudgetMaxRub         int32                         `json:"budget_max_rub"`
 	BudgetMinRub         int32                         `json:"budget_min_rub"`
 	CityId               int32                         `json:"city_id"`
+	DepositRub           *int32                        `json:"deposit_rub,omitempty"`
 	DisplayName          string                        `json:"display_name"`
 	Districts            string                        `json:"districts"`
 	Gender               ProfileSnapshotGender         `json:"gender"`
@@ -115,10 +138,14 @@ type ProfileSnapshot struct {
 	MoveInFrom           openapi_types.Date            `json:"move_in_from"`
 	MoveInTo             openapi_types.Date            `json:"move_in_to"`
 	Occupation           string                        `json:"occupation"`
+	PlaceNote            string                        `json:"place_note"`
 	QuestionnaireVersion int32                         `json:"questionnaire_version"`
+	RequiredHabits       []string                      `json:"required_habits"`
 	RoommateGender       ProfileSnapshotRoommateGender `json:"roommate_gender"`
+	Scenario             ProfileSnapshotScenario       `json:"scenario"`
 	SearchStatus         ProfileSnapshotSearchStatus   `json:"search_status"`
 	UpdatedAt            time.Time                     `json:"updated_at"`
+	UtilitiesRub         *int32                        `json:"utilities_rub,omitempty"`
 }
 
 // ProfileSnapshotGender defines model for ProfileSnapshot.Gender.
@@ -126,6 +153,9 @@ type ProfileSnapshotGender string
 
 // ProfileSnapshotRoommateGender defines model for ProfileSnapshot.RoommateGender.
 type ProfileSnapshotRoommateGender string
+
+// ProfileSnapshotScenario defines model for ProfileSnapshot.Scenario.
+type ProfileSnapshotScenario string
 
 // ProfileSnapshotSearchStatus defines model for ProfileSnapshot.SearchStatus.
 type ProfileSnapshotSearchStatus string

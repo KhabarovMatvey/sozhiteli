@@ -34,7 +34,44 @@ type Definition struct {
 
 // Current returns the version new and edited profiles must use.
 func Current() Definition {
-	return v1
+	return v2
+}
+
+// v2 adds the topics of hypothesis H3 that v1 did not cover: noise, working
+// or studying from home and personal space (priority Must #3). v1 codes keep
+// their meaning, so answers of both versions stay comparable question by
+// question; a v1 profile simply has no answer to the new questions.
+var v2 = Definition{
+	Version: 2,
+	Questions: append(slices.Clone(v1.Questions),
+		Question{
+			Code:  "noise",
+			Title: "Шум дома",
+			Options: []Option{
+				{Code: "quiet", Label: "Нужна тишина: музыка и звонки — в наушниках"},
+				{Code: "moderate", Label: "Днём шуметь можно, вечером — тише"},
+				{Code: "relaxed", Label: "Шум меня не беспокоит"},
+			},
+		},
+		Question{
+			Code:  "remote_work",
+			Title: "Работа или учёба из дома",
+			Options: []Option{
+				{Code: "rarely", Label: "Днём почти не бываю дома"},
+				{Code: "sometimes", Label: "Иногда работаю или учусь дома"},
+				{Code: "mostly", Label: "Работаю или учусь из дома большую часть дней"},
+			},
+		},
+		Question{
+			Code:  "personal_space",
+			Title: "Личное пространство",
+			Options: []Option{
+				{Code: "strict", Label: "В комнату — только по приглашению, вещи без спроса не берём"},
+				{Code: "flexible", Label: "Общими вещами пользуемся, о личных спрашиваем"},
+				{Code: "open", Label: "Легко делюсь вещами, двери открыты"},
+			},
+		},
+	),
 }
 
 var v1 = Definition{

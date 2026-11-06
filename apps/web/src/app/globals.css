@@ -320,6 +320,66 @@ p {
   width: 100%;
 }
 
+.btn-small {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn-danger:hover {
+  filter: brightness(0.92);
+  color: #fff;
+}
+
+.safety {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.check {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.check.small {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.request-extra {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.radio-list {
+  display: grid;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.radio-list label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+textarea.input {
+  resize: vertical;
+  min-height: 72px;
+}
+
 .btn-lg {
   padding: 15px 24px;
   font-size: 16px;

@@ -38,6 +38,8 @@ type adminTableDefinition struct {
 var adminTables = []adminTableDefinition{
 	{name: "contact_request", label: "Запросы на контакт", columns: []string{"id", "sender_id", "recipient_id", "status", "created_at", "responded_at"}},
 	{name: "contact", label: "Контакты без значений", columns: []string{"user_id", "kind", "updated_at"}},
+	{name: "user_block", label: "Блокировки", columns: []string{"blocker_id", "blocked_id", "created_at"}},
+	{name: "report", label: "Жалобы без комментариев", columns: []string{"id", "reporter_id", "reported_id", "reason", "status", "created_at", "resolved_at"}},
 }
 
 func requireAdmin(ctx context.Context) error {
@@ -60,7 +62,7 @@ func (s *Server) GetAdminDatabase(ctx context.Context, _ GetAdminDatabaseRequest
 	if err != nil {
 		return nil, fmt.Errorf("read admin database: %w", err)
 	}
-	counts := []int64{row.ContactRequestCount, row.ContactCount}
+	counts := []int64{row.ContactRequestCount, row.ContactCount, row.UserBlockCount, row.ReportCount}
 	tables := make([]AdminTableSummary, 0, len(adminTables))
 	for i, table := range adminTables {
 		tables = append(tables, AdminTableSummary{Name: table.name, Label: table.label, Columns: table.columns, RowCount: counts[i]})
@@ -133,6 +135,41 @@ func (s *Server) ListAdminTableRows(ctx context.Context, request ListAdminTableR
 	}
 	records := make([]adminRecord, 0, size+1)
 	switch request.Table {
+	case "user_block":
+		var blocker, blocked uuid.UUID
+		if hasCursor {
+			first, second, ok := strings.Cut(key, "/")
+			if !ok {
+				return nil, problem.InvalidRequest("cursor is not valid for this table")
+			}
+			if blocker, err = uuid.Parse(first); err == nil {
+				blocked, err = uuid.Parse(second)
+			}
+			if err != nil {
+				return nil, problem.InvalidRequest("cursor is not valid for this table")
+			}
+		}
+		rows, err := s.queries.ListAdminUserBlocks(ctx, store.ListAdminUserBlocksParams{HasCursor: hasCursor, AfterBlocker: blocker, AfterBlocked: blocked, PageSize: size + 1})
+		if err != nil {
+			return nil, fmt.Errorf("read admin blocks: %w", err)
+		}
+		for _, row := range rows {
+			records = append(records, adminRecord{key: row.KeyID, data: row.RowData})
+		}
+	case "report":
+		var id uuid.UUID
+		if hasCursor {
+			if id, err = uuid.Parse(key); err != nil {
+				return nil, problem.InvalidRequest("cursor is not valid for this table")
+			}
+		}
+		rows, err := s.queries.ListAdminReportRows(ctx, store.ListAdminReportRowsParams{HasCursor: hasCursor, AfterID: id, PageSize: size + 1})
+		if err != nil {
+			return nil, fmt.Errorf("read admin reports: %w", err)
+		}
+		for _, row := range rows {
+			records = append(records, adminRecord{key: row.KeyID.String(), data: row.RowData})
+		}
 	case "contact_request", "contact":
 		var id uuid.UUID
 		if hasCursor {

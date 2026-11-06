@@ -22,6 +22,12 @@ SELECT user_id,
        questionnaire_version,
        habits,
        search_status,
+       scenario,
+       accepts_room,
+       utilities_rub,
+       deposit_rub,
+       place_note,
+       required_habits,
        updated_at
 FROM profile
 WHERE (feed_version, user_id) > (sqlc.arg(after_version)::bigint, sqlc.arg(after_user_id)::uuid)

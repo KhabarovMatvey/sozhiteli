@@ -298,10 +298,21 @@ export interface components {
      */
     RoommateGender: 'any' | 'same';
     /**
-     * @description searching — анкета показывается кандидатам; paused — скрыта из выдачи
+     * @description pair - ищу соседа, чтобы вместе снять квартиру (сегмент 1);
+     *     room_offer - уже снимаю квартиру и ищу жильца на свободное место
+     *     (сегмент 2). Для room_offer budget_min_rub = budget_max_rub = аренда
+     *     за место в месяц, move_in_from..move_in_to - когда место свободно.
+     * @default pair
      * @enum {string}
      */
-    SearchStatus: 'searching' | 'paused';
+    Scenario: 'pair' | 'room_offer';
+    /**
+     * @description searching — анкета показывается кандидатам; paused — поиск на паузе,
+     *     анкета скрыта из выдачи; found — сосед найден, поиск завершён,
+     *     анкета скрыта из выдачи
+     * @enum {string}
+     */
+    SearchStatus: 'searching' | 'paused' | 'found';
     ProfileInput: {
       display_name: string;
       /**
@@ -344,6 +355,30 @@ export interface components {
         [key: string]: string;
       };
       search_status: components['schemas']['SearchStatus'];
+      scenario?: components['schemas']['Scenario'];
+      /**
+       * @description Только для scenario = pair: готов(а) заехать на свободное место в уже
+       *     снятой квартире. Тогда в выдаче появляются и анкеты room_offer.
+       * @default false
+       */
+      accepts_room: boolean;
+      /**
+       * Format: int32
+       * @description Только room_offer, обязательно - коммунальные платежи на человека в месяц, примерно
+       */
+      utilities_rub?: number;
+      /**
+       * Format: int32
+       * @description Только room_offer, обязательно - залог при заселении
+       */
+      deposit_rub?: number;
+      /** @description Только room_offer - о квартире и свободном месте; контакты запрещены */
+      place_note?: string;
+      /**
+       * @description Коды вопросов анкеты, по которым нужен тот же ответ. Кандидат с другим
+       *     ответом не попадает в выдачу (в обе стороны); не ответивший - попадает.
+       */
+      required_habits?: string[];
     };
     Profile: {
       /** Format: uuid */
@@ -371,6 +406,14 @@ export interface components {
         [key: string]: string;
       };
       search_status: components['schemas']['SearchStatus'];
+      scenario: components['schemas']['Scenario'];
+      accepts_room: boolean;
+      /** Format: int32 */
+      utilities_rub?: number;
+      /** Format: int32 */
+      deposit_rub?: number;
+      place_note: string;
+      required_habits: string[];
       /** Format: date-time */
       created_at: string;
       /** Format: date-time */

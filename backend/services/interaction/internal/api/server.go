@@ -127,6 +127,13 @@ func (s *Server) CreateContactRequest(ctx context.Context, request CreateContact
 		if !hasContact {
 			return errContactRequired
 		}
+		blocked, err := q.BlockExistsBetween(ctx, store.BlockExistsBetweenParams{UserA: senderID, UserB: recipientID})
+		if err != nil {
+			return fmt.Errorf("check block: %w", err)
+		}
+		if blocked {
+			return errBlocked
+		}
 		existing, err := q.ListRequestsBetween(ctx, store.ListRequestsBetweenParams{UserA: senderID, UserB: recipientID})
 		if err != nil {
 			return fmt.Errorf("find existing requests: %w", err)

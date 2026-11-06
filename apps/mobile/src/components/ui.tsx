@@ -15,6 +15,8 @@ import {
   matchTone,
   problemMessage,
   shortDay,
+  formatRub,
+  placeCosts,
 } from '@sozhiteli/api-client';
 import type { ReactNode } from 'react';
 import {
@@ -322,6 +324,39 @@ export function Choice<V extends string>({
   );
 }
 
+/** Флажок «да/нет» плашкой, как на web. */
+export function Toggle({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: value }}
+      onPress={() => onChange(!value)}
+      style={[
+        styles.choice,
+        {
+          alignSelf: 'flex-start',
+          backgroundColor: value ? t.accentSoft : t.soft,
+          borderColor: value ? t.accent : 'transparent',
+        },
+      ]}
+    >
+      <Text style={{ color: value ? t.accent : t.text, fontSize: 14, fontWeight: '600' }}>
+        {value ? '☑ ' : '☐ '}
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export type ChipTone = 'good' | 'mid' | 'low' | 'info' | 'none';
 
 export function Chip({ tone = 'none', children }: { tone?: ChipTone; children: ReactNode }) {
@@ -393,9 +428,15 @@ export function CandidateTile({
         <T bold size={16} color={t.accent}>
           {candidateTitle(card)}
         </T>
+        {card.scenario === 'room_offer' && <Chip tone="info">Свободное место в квартире</Chip>}
         <Text style={[styles.price, { color: t.text }]}>
           {formatBudget(card.budget_min_rub, card.budget_max_rub)}
         </Text>
+        {placeCosts(card) && (
+          <T muted size={13}>
+            аренда за место + коммунальные {formatRub(placeCosts(card)!.utilities)}
+          </T>
+        )}
         <T size={13}>{card.occupation}</T>
         {where ? (
           <T muted size={13}>
@@ -403,7 +444,8 @@ export function CandidateTile({
           </T>
         ) : null}
         <T muted size={13}>
-          Заселение {shortDay(card.move_in_from)} — {shortDay(card.move_in_to)}
+          {card.scenario === 'room_offer' ? 'Свободно' : 'Заселение'} {shortDay(card.move_in_from)} —{' '}
+          {shortDay(card.move_in_to)}
         </T>
         <View style={styles.row}>
           <MatchChip card={card} />
@@ -420,8 +462,11 @@ export function CandidateFacts({ card, cities }: { card: Card; cities?: City[] }
     ['Учёба или работа', card.occupation],
     ...(city ? ([['Город', city]] as [string, string][]) : []),
     ...(card.districts ? ([['Районы', card.districts]] as [string, string][]) : []),
-    ['Бюджет', `${formatBudget(card.budget_min_rub, card.budget_max_rub)} в месяц`],
-    ['Заселение', `${formatDate(card.move_in_from)} — ${formatDate(card.move_in_to)}`],
+    ...placeRows(card),
+    [
+      card.scenario === 'room_offer' ? 'Место свободно' : 'Заселение',
+      `${formatDate(card.move_in_from)} — ${formatDate(card.move_in_to)}`,
+    ],
   ];
   return (
     <View style={styles.facts}>
@@ -439,8 +484,28 @@ export function CandidateFacts({ card, cities }: { card: Card; cities?: City[] }
   );
 }
 
+/** Строки расходов: свободное место (гипотеза H2) или бюджет на человека. */
+function placeRows(card: Card): [string, string][] {
+  const costs = placeCosts(card);
+  if (!costs) {
+    const rows: [string, string][] = [
+      ['Бюджет', `${formatBudget(card.budget_min_rub, card.budget_max_rub)} в месяц`],
+    ];
+    if (card.accepts_room) rows.push(['Свободное место', 'готов(а) заехать в уже снятую квартиру']);
+    return rows;
+  }
+  const rows: [string, string][] = [
+    ['Аренда за место', `${formatRub(costs.rent)} в месяц`],
+    ['Коммунальные', `около ${formatRub(costs.utilities)} в месяц`],
+    ['Залог', formatRub(costs.deposit)],
+    ['При заселении', `${formatRub(costs.moveIn)}, дальше около ${formatRub(costs.monthly)} в месяц`],
+  ];
+  if (card.place_note) rows.push(['О квартире', card.place_note]);
+  return rows;
+}
+
 export function candidateTitle(card: Card): string {
-  return `${card.display_name}, ${formatAge(card.age)}${card.search_status === 'paused' ? ' · поиск на паузе' : ''}`;
+  return `${card.display_name}, ${formatAge(card.age)}${card.search_status === 'paused' ? ' · поиск на паузе' : card.search_status === 'found' ? ' · сосед найден' : ''}`;
 }
 
 export function matchText(card: Card): string {

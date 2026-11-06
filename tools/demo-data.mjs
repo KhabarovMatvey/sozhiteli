@@ -101,9 +101,24 @@ const jobs = [
   'работаю в рознице',
 ];
 
-// Варианты ответов анкеты v1 (backend/services/profile/internal/questionnaire)
+// Варианты ответов анкеты v2 (backend/services/profile/internal/questionnaire)
 // с весами: распространённые ответы встречаются чаще.
 const habits = {
+  noise: [
+    ['quiet', 3],
+    ['moderate', 5],
+    ['relaxed', 2],
+  ],
+  remote_work: [
+    ['rarely', 4],
+    ['sometimes', 4],
+    ['mostly', 2],
+  ],
+  personal_space: [
+    ['strict', 3],
+    ['flexible', 6],
+    ['open', 1],
+  ],
   smoking: [
     ['no', 7],
     ['outside', 2],
@@ -236,7 +251,7 @@ if (command === 'seed') {
     (p) =>
       `(${quote(p.userId)}::uuid, ${quote(p.name)}, ${p.birthYear}, ${quote(p.gender)}, ${quote(p.occupation)},
         ${p.cityId}, ${quote(p.districts)}, ${p.min}, ${p.max},
-        current_date + ${p.from}, current_date + ${p.to}, ${quote(p.roommate)}, 1,
+        current_date + ${p.from}, current_date + ${p.to}, ${quote(p.roommate)}, 2,
         ${quote(JSON.stringify(p.habits))}::jsonb, 'searching')`,
   );
   sql(

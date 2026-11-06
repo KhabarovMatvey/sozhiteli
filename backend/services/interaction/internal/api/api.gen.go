@@ -80,12 +80,82 @@ func (e Direction) Valid() bool {
 	}
 }
 
+// Defines values for ReportReason.
+const (
+	Commercial ReportReason = "commercial"
+	Fake       ReportReason = "fake"
+	Fraud      ReportReason = "fraud"
+	Offensive  ReportReason = "offensive"
+	Other      ReportReason = "other"
+)
+
+// Valid indicates whether the value is a known member of the ReportReason enum.
+func (e ReportReason) Valid() bool {
+	switch e {
+	case Commercial:
+		return true
+	case Fake:
+		return true
+	case Fraud:
+		return true
+	case Offensive:
+		return true
+	case Other:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReportStatus.
+const (
+	Open     ReportStatus = "open"
+	Resolved ReportStatus = "resolved"
+)
+
+// Valid indicates whether the value is a known member of the ReportStatus enum.
+func (e ReportStatus) Valid() bool {
+	switch e {
+	case Open:
+		return true
+	case Resolved:
+		return true
+	default:
+		return false
+	}
+}
+
 // AdminDatabase defines model for AdminDatabase.
 type AdminDatabase struct {
 	Database  string              `json:"database"`
 	Service   string              `json:"service"`
 	SizeBytes int64               `json:"size_bytes"`
 	Tables    []AdminTableSummary `json:"tables"`
+}
+
+// AdminReport defines model for AdminReport.
+type AdminReport struct {
+	Comment   string             `json:"comment"`
+	CreatedAt time.Time          `json:"created_at"`
+	Id        openapi_types.UUID `json:"id"`
+
+	// Reason fake - анкета не похожа на настоящего человека; commercial - риелтор,
+	// посредник или реклама; offensive - оскорбления или давление;
+	// fraud - просит деньги или предоплату; other - другое (пояснить в comment).
+	Reason     ReportReason       `json:"reason"`
+	ReportedId openapi_types.UUID `json:"reported_id"`
+
+	// ReportedOpenCount Открытых жалоб на того же пользователя
+	ReportedOpenCount int64              `json:"reported_open_count"`
+	ReporterId        openapi_types.UUID `json:"reporter_id"`
+	ResolvedAt        *time.Time         `json:"resolved_at,omitempty"`
+	Status            ReportStatus       `json:"status"`
+}
+
+// AdminReportPage defines model for AdminReportPage.
+type AdminReportPage struct {
+	Items      []AdminReport `json:"items"`
+	NextCursor *string       `json:"next_cursor"`
 }
 
 // AdminTableRows defines model for AdminTableRows.
@@ -102,6 +172,54 @@ type AdminTableSummary struct {
 	Label    string   `json:"label"`
 	Name     string   `json:"name"`
 	RowCount int64    `json:"row_count"`
+}
+
+// Agreement defines model for Agreement.
+type Agreement struct {
+	// Items Текст по темам: cleaning - уборка; guests - гости; noise - шум и тишина;
+	// payments - платежи и общие покупки; move_in - дата въезда и ключи;
+	// other - другое. Пустые темы не передаются.
+	Items     AgreementItems     `json:"items"`
+	RequestId openapi_types.UUID `json:"request_id"`
+
+	// UpdatedAt Отсутствует, пока ничего не записано
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+
+	// UpdatedByMe Последнее изменение сделал текущий пользователь
+	UpdatedByMe *bool `json:"updated_by_me,omitempty"`
+}
+
+// AgreementInput defines model for AgreementInput.
+type AgreementInput struct {
+	// Items Текст по темам: cleaning - уборка; guests - гости; noise - шум и тишина;
+	// payments - платежи и общие покупки; move_in - дата въезда и ключи;
+	// other - другое. Пустые темы не передаются.
+	Items AgreementItems `json:"items"`
+}
+
+// AgreementItems Текст по темам: cleaning - уборка; guests - гости; noise - шум и тишина;
+// payments - платежи и общие покупки; move_in - дата въезда и ключи;
+// other - другое. Пустые темы не передаются.
+type AgreementItems struct {
+	Cleaning *string `json:"cleaning,omitempty"`
+	Guests   *string `json:"guests,omitempty"`
+	MoveIn   *string `json:"move_in,omitempty"`
+	Noise    *string `json:"noise,omitempty"`
+	Other    *string `json:"other,omitempty"`
+	Payments *string `json:"payments,omitempty"`
+}
+
+// Block defines model for Block.
+type Block struct {
+	CreatedAt time.Time `json:"created_at"`
+
+	// UserId Заблокированный пользователь
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// BlockList defines model for BlockList.
+type BlockList struct {
+	Items []Block `json:"items"`
 }
 
 // Contact defines model for Contact.
@@ -152,6 +270,17 @@ type ContactRequestStatus string
 // Direction incoming - запросы мне; outgoing - запросы от меня
 type Direction string
 
+// Favorite defines model for Favorite.
+type Favorite struct {
+	CreatedAt time.Time          `json:"created_at"`
+	UserId    openapi_types.UUID `json:"user_id"`
+}
+
+// FavoriteList defines model for FavoriteList.
+type FavoriteList struct {
+	Items []Favorite `json:"items"`
+}
+
 // FieldError defines model for FieldError.
 type FieldError struct {
 	Code    string `json:"code"`
@@ -170,8 +299,44 @@ type Problem struct {
 	Type      string        `json:"type"`
 }
 
+// Report defines model for Report.
+type Report struct {
+	CreatedAt time.Time          `json:"created_at"`
+	Id        openapi_types.UUID `json:"id"`
+
+	// Reason fake - анкета не похожа на настоящего человека; commercial - риелтор,
+	// посредник или реклама; offensive - оскорбления или давление;
+	// fraud - просит деньги или предоплату; other - другое (пояснить в comment).
+	Reason     ReportReason       `json:"reason"`
+	ReportedId openapi_types.UUID `json:"reported_id"`
+	Status     ReportStatus       `json:"status"`
+}
+
+// ReportCreate defines model for ReportCreate.
+type ReportCreate struct {
+	// Comment Пояснение своими словами; для reason = other обязательно (422 comment_required)
+	Comment *string `json:"comment,omitempty"`
+
+	// Reason fake - анкета не похожа на настоящего человека; commercial - риелтор,
+	// посредник или реклама; offensive - оскорбления или давление;
+	// fraud - просит деньги или предоплату; other - другое (пояснить в comment).
+	Reason     ReportReason       `json:"reason"`
+	ReportedId openapi_types.UUID `json:"reported_id"`
+}
+
+// ReportReason fake - анкета не похожа на настоящего человека; commercial - риелтор,
+// посредник или реклама; offensive - оскорбления или давление;
+// fraud - просит деньги или предоплату; other - другое (пояснить в comment).
+type ReportReason string
+
+// ReportStatus defines model for ReportStatus.
+type ReportStatus string
+
 // RequestId defines model for RequestId.
 type RequestId = openapi_types.UUID
+
+// UserId defines model for UserId.
+type UserId = openapi_types.UUID
 
 // AdminForbidden Единый формат ошибки (RFC 9457). Клиент ветвится по полю code.
 type AdminForbidden = Problem
@@ -197,6 +362,13 @@ type Unauthorized = Problem
 // UnprocessableEntity Единый формат ошибки (RFC 9457). Клиент ветвится по полю code.
 type UnprocessableEntity = Problem
 
+// ListAdminReportsParams defines parameters for ListAdminReports.
+type ListAdminReportsParams struct {
+	Status *ReportStatus `form:"status,omitempty" json:"status,omitempty"`
+	Limit  *int32        `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *string       `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
 // ListAdminTableRowsParams defines parameters for ListAdminTableRows.
 type ListAdminTableRowsParams struct {
 	Limit  *int32  `form:"limit,omitempty" json:"limit,omitempty"`
@@ -218,17 +390,38 @@ type ListContactRequestsParams struct {
 // CreateContactRequestJSONRequestBody defines body for CreateContactRequest for application/json ContentType.
 type CreateContactRequestJSONRequestBody = ContactRequestCreate
 
+// PutAgreementJSONRequestBody defines body for PutAgreement for application/json ContentType.
+type PutAgreementJSONRequestBody = AgreementInput
+
 // PutMyContactJSONRequestBody defines body for PutMyContact for application/json ContentType.
 type PutMyContactJSONRequestBody = Contact
+
+// CreateReportJSONRequestBody defines body for CreateReport for application/json ContentType.
+type CreateReportJSONRequestBody = ReportCreate
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// GetAdminDatabase Состояние собственной базы данных сервиса
 	// (GET /v1/admin/database)
 	GetAdminDatabase(w http.ResponseWriter, r *http.Request)
+	// ListAdminReports Очередь жалоб
+	// (GET /v1/admin/reports)
+	ListAdminReports(w http.ResponseWriter, r *http.Request, params ListAdminReportsParams)
+	// ResolveAdminReport Отметить жалобу рассмотренной
+	// (POST /v1/admin/reports/{report_id}/resolve)
+	ResolveAdminReport(w http.ResponseWriter, r *http.Request, reportId openapi_types.UUID)
 	// ListAdminTableRows Страница записей разрешённой таблицы
 	// (GET /v1/admin/tables/{table})
 	ListAdminTableRows(w http.ResponseWriter, r *http.Request, table string, params ListAdminTableRowsParams)
+	// ListBlocks Пользователи, которых заблокировал текущий пользователь
+	// (GET /v1/blocks)
+	ListBlocks(w http.ResponseWriter, r *http.Request)
+	// UnblockUser Снять блокировку
+	// (DELETE /v1/blocks/{user_id})
+	UnblockUser(w http.ResponseWriter, r *http.Request, userId UserId)
+	// BlockUser Заблокировать пользователя
+	// (PUT /v1/blocks/{user_id})
+	BlockUser(w http.ResponseWriter, r *http.Request, userId UserId)
 	// ListContactRequests Запросы на контакт текущего пользователя
 	// (GET /v1/contact-requests)
 	ListContactRequests(w http.ResponseWriter, r *http.Request, params ListContactRequestsParams)
@@ -238,15 +431,33 @@ type ServerInterface interface {
 	// AcceptContactRequest Принять входящий запрос и обменяться контактами
 	// (POST /v1/contact-requests/{request_id}/accept)
 	AcceptContactRequest(w http.ResponseWriter, r *http.Request, requestId RequestId)
+	// GetAgreement Договорённости пары
+	// (GET /v1/contact-requests/{request_id}/agreement)
+	GetAgreement(w http.ResponseWriter, r *http.Request, requestId RequestId)
+	// PutAgreement Записать договорённости пары
+	// (PUT /v1/contact-requests/{request_id}/agreement)
+	PutAgreement(w http.ResponseWriter, r *http.Request, requestId RequestId)
 	// DeclineContactRequest Отклонить входящий запрос
 	// (POST /v1/contact-requests/{request_id}/decline)
 	DeclineContactRequest(w http.ResponseWriter, r *http.Request, requestId RequestId)
+	// ListFavorites Сохранённые текущим пользователем кандидаты
+	// (GET /v1/favorites)
+	ListFavorites(w http.ResponseWriter, r *http.Request)
+	// RemoveFavorite Убрать кандидата из избранного
+	// (DELETE /v1/favorites/{user_id})
+	RemoveFavorite(w http.ResponseWriter, r *http.Request, userId UserId)
+	// AddFavorite Сохранить кандидата
+	// (PUT /v1/favorites/{user_id})
+	AddFavorite(w http.ResponseWriter, r *http.Request, userId UserId)
 	// GetMyContact Контакт текущего пользователя
 	// (GET /v1/me/contact)
 	GetMyContact(w http.ResponseWriter, r *http.Request)
 	// PutMyContact Указать или заменить контакт текущего пользователя
 	// (PUT /v1/me/contact)
 	PutMyContact(w http.ResponseWriter, r *http.Request)
+	// CreateReport Пожаловаться на пользователя
+	// (POST /v1/reports)
+	CreateReport(w http.ResponseWriter, r *http.Request)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -259,9 +470,39 @@ func (_ Unimplemented) GetAdminDatabase(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// ListAdminReports Очередь жалоб
+// (GET /v1/admin/reports)
+func (_ Unimplemented) ListAdminReports(w http.ResponseWriter, r *http.Request, params ListAdminReportsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ResolveAdminReport Отметить жалобу рассмотренной
+// (POST /v1/admin/reports/{report_id}/resolve)
+func (_ Unimplemented) ResolveAdminReport(w http.ResponseWriter, r *http.Request, reportId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // ListAdminTableRows Страница записей разрешённой таблицы
 // (GET /v1/admin/tables/{table})
 func (_ Unimplemented) ListAdminTableRows(w http.ResponseWriter, r *http.Request, table string, params ListAdminTableRowsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListBlocks Пользователи, которых заблокировал текущий пользователь
+// (GET /v1/blocks)
+func (_ Unimplemented) ListBlocks(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UnblockUser Снять блокировку
+// (DELETE /v1/blocks/{user_id})
+func (_ Unimplemented) UnblockUser(w http.ResponseWriter, r *http.Request, userId UserId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// BlockUser Заблокировать пользователя
+// (PUT /v1/blocks/{user_id})
+func (_ Unimplemented) BlockUser(w http.ResponseWriter, r *http.Request, userId UserId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -283,9 +524,39 @@ func (_ Unimplemented) AcceptContactRequest(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// GetAgreement Договорённости пары
+// (GET /v1/contact-requests/{request_id}/agreement)
+func (_ Unimplemented) GetAgreement(w http.ResponseWriter, r *http.Request, requestId RequestId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutAgreement Записать договорённости пары
+// (PUT /v1/contact-requests/{request_id}/agreement)
+func (_ Unimplemented) PutAgreement(w http.ResponseWriter, r *http.Request, requestId RequestId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // DeclineContactRequest Отклонить входящий запрос
 // (POST /v1/contact-requests/{request_id}/decline)
 func (_ Unimplemented) DeclineContactRequest(w http.ResponseWriter, r *http.Request, requestId RequestId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListFavorites Сохранённые текущим пользователем кандидаты
+// (GET /v1/favorites)
+func (_ Unimplemented) ListFavorites(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RemoveFavorite Убрать кандидата из избранного
+// (DELETE /v1/favorites/{user_id})
+func (_ Unimplemented) RemoveFavorite(w http.ResponseWriter, r *http.Request, userId UserId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// AddFavorite Сохранить кандидата
+// (PUT /v1/favorites/{user_id})
+func (_ Unimplemented) AddFavorite(w http.ResponseWriter, r *http.Request, userId UserId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -298,6 +569,12 @@ func (_ Unimplemented) GetMyContact(w http.ResponseWriter, r *http.Request) {
 // PutMyContact Указать или заменить контакт текущего пользователя
 // (PUT /v1/me/contact)
 func (_ Unimplemented) PutMyContact(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateReport Пожаловаться на пользователя
+// (POST /v1/reports)
+func (_ Unimplemented) CreateReport(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -315,6 +592,91 @@ func (siw *ServerInterfaceWrapper) GetAdminDatabase(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAdminDatabase(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminReports operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminReports(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminReportsParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: "int32"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminReports(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResolveAdminReport operation middleware
+func (siw *ServerInterfaceWrapper) ResolveAdminReport(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "report_id" -------------
+	var reportId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "report_id", chi.URLParam(r, "report_id"), &reportId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "report_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResolveAdminReport(w, r, reportId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -370,6 +732,72 @@ func (siw *ServerInterfaceWrapper) ListAdminTableRows(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListAdminTableRows(w, r, table, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListBlocks operation middleware
+func (siw *ServerInterfaceWrapper) ListBlocks(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListBlocks(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UnblockUser operation middleware
+func (siw *ServerInterfaceWrapper) UnblockUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "user_id" -------------
+	var userId UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "user_id", chi.URLParam(r, "user_id"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnblockUser(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// BlockUser operation middleware
+func (siw *ServerInterfaceWrapper) BlockUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "user_id" -------------
+	var userId UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "user_id", chi.URLParam(r, "user_id"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.BlockUser(w, r, userId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -491,6 +919,58 @@ func (siw *ServerInterfaceWrapper) AcceptContactRequest(w http.ResponseWriter, r
 	handler.ServeHTTP(w, r)
 }
 
+// GetAgreement operation middleware
+func (siw *ServerInterfaceWrapper) GetAgreement(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "request_id" -------------
+	var requestId RequestId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "request_id", chi.URLParam(r, "request_id"), &requestId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "request_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAgreement(w, r, requestId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutAgreement operation middleware
+func (siw *ServerInterfaceWrapper) PutAgreement(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "request_id" -------------
+	var requestId RequestId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "request_id", chi.URLParam(r, "request_id"), &requestId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "request_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutAgreement(w, r, requestId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeclineContactRequest operation middleware
 func (siw *ServerInterfaceWrapper) DeclineContactRequest(w http.ResponseWriter, r *http.Request) {
 
@@ -508,6 +988,72 @@ func (siw *ServerInterfaceWrapper) DeclineContactRequest(w http.ResponseWriter, 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeclineContactRequest(w, r, requestId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListFavorites operation middleware
+func (siw *ServerInterfaceWrapper) ListFavorites(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListFavorites(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RemoveFavorite operation middleware
+func (siw *ServerInterfaceWrapper) RemoveFavorite(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "user_id" -------------
+	var userId UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "user_id", chi.URLParam(r, "user_id"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RemoveFavorite(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddFavorite operation middleware
+func (siw *ServerInterfaceWrapper) AddFavorite(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "user_id" -------------
+	var userId UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "user_id", chi.URLParam(r, "user_id"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddFavorite(w, r, userId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -536,6 +1082,20 @@ func (siw *ServerInterfaceWrapper) PutMyContact(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutMyContact(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateReport operation middleware
+func (siw *ServerInterfaceWrapper) CreateReport(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateReport(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -682,6 +1242,39 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/v1/contact-requests/{request_id}/decline", wrapper.DeclineContactRequest)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/blocks", wrapper.ListBlocks)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/v1/blocks/{user_id}", wrapper.UnblockUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/v1/blocks/{user_id}", wrapper.BlockUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/v1/reports", wrapper.CreateReport)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/admin/reports", wrapper.ListAdminReports)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/v1/admin/reports/{report_id}/resolve", wrapper.ResolveAdminReport)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/favorites", wrapper.ListFavorites)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/v1/favorites/{user_id}", wrapper.RemoveFavorite)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/v1/favorites/{user_id}", wrapper.AddFavorite)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/contact-requests/{request_id}/agreement", wrapper.GetAgreement)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/v1/contact-requests/{request_id}/agreement", wrapper.PutAgreement)
+	})
 
 	return r
 }
@@ -761,6 +1354,210 @@ type GetAdminDatabasedefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetAdminDatabasedefaultApplicationProblemPlusJSONResponse) VisitGetAdminDatabaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminReportsRequestObject struct {
+	Params ListAdminReportsParams
+}
+
+type ListAdminReportsResponseObject interface {
+	VisitListAdminReportsResponse(w http.ResponseWriter) error
+}
+
+type ListAdminReports200JSONResponse AdminReportPage
+
+func (response ListAdminReports200JSONResponse) VisitListAdminReportsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminReports400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response ListAdminReports400ApplicationProblemPlusJSONResponse) VisitListAdminReportsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminReports401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response ListAdminReports401ApplicationProblemPlusJSONResponse) VisitListAdminReportsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminReports403ApplicationProblemPlusJSONResponse struct {
+	AdminForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response ListAdminReports403ApplicationProblemPlusJSONResponse) VisitListAdminReportsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminReportsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListAdminReportsdefaultApplicationProblemPlusJSONResponse) VisitListAdminReportsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResolveAdminReportRequestObject struct {
+	ReportId openapi_types.UUID `json:"report_id"`
+}
+
+type ResolveAdminReportResponseObject interface {
+	VisitResolveAdminReportResponse(w http.ResponseWriter) error
+}
+
+type ResolveAdminReport200JSONResponse AdminReport
+
+func (response ResolveAdminReport200JSONResponse) VisitResolveAdminReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResolveAdminReport400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response ResolveAdminReport400ApplicationProblemPlusJSONResponse) VisitResolveAdminReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResolveAdminReport401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response ResolveAdminReport401ApplicationProblemPlusJSONResponse) VisitResolveAdminReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResolveAdminReport403ApplicationProblemPlusJSONResponse struct {
+	AdminForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response ResolveAdminReport403ApplicationProblemPlusJSONResponse) VisitResolveAdminReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResolveAdminReport404ApplicationProblemPlusJSONResponse Problem
+
+func (response ResolveAdminReport404ApplicationProblemPlusJSONResponse) VisitResolveAdminReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResolveAdminReport409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response ResolveAdminReport409ApplicationProblemPlusJSONResponse) VisitResolveAdminReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResolveAdminReportdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ResolveAdminReportdefaultApplicationProblemPlusJSONResponse) VisitResolveAdminReportResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -863,6 +1660,222 @@ type ListAdminTableRowsdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response ListAdminTableRowsdefaultApplicationProblemPlusJSONResponse) VisitListAdminTableRowsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBlocksRequestObject struct {
+}
+
+type ListBlocksResponseObject interface {
+	VisitListBlocksResponse(w http.ResponseWriter) error
+}
+
+type ListBlocks200JSONResponse BlockList
+
+func (response ListBlocks200JSONResponse) VisitListBlocksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBlocks401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response ListBlocks401ApplicationProblemPlusJSONResponse) VisitListBlocksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBlocksdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListBlocksdefaultApplicationProblemPlusJSONResponse) VisitListBlocksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnblockUserRequestObject struct {
+	UserId UserId `json:"user_id"`
+}
+
+type UnblockUserResponseObject interface {
+	VisitUnblockUserResponse(w http.ResponseWriter) error
+}
+
+type UnblockUser204Response struct {
+}
+
+func (response UnblockUser204Response) VisitUnblockUserResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type UnblockUser400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response UnblockUser400ApplicationProblemPlusJSONResponse) VisitUnblockUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnblockUser401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response UnblockUser401ApplicationProblemPlusJSONResponse) VisitUnblockUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnblockUserdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UnblockUserdefaultApplicationProblemPlusJSONResponse) VisitUnblockUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BlockUserRequestObject struct {
+	UserId UserId `json:"user_id"`
+}
+
+type BlockUserResponseObject interface {
+	VisitBlockUserResponse(w http.ResponseWriter) error
+}
+
+type BlockUser204Response struct {
+}
+
+func (response BlockUser204Response) VisitBlockUserResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type BlockUser400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response BlockUser400ApplicationProblemPlusJSONResponse) VisitBlockUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BlockUser401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response BlockUser401ApplicationProblemPlusJSONResponse) VisitBlockUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BlockUser409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response BlockUser409ApplicationProblemPlusJSONResponse) VisitBlockUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BlockUser422ApplicationProblemPlusJSONResponse struct {
+	UnprocessableEntityApplicationProblemPlusJSONResponse
+}
+
+func (response BlockUser422ApplicationProblemPlusJSONResponse) VisitBlockUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BlockUserdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response BlockUserdefaultApplicationProblemPlusJSONResponse) VisitBlockUserResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1167,6 +2180,213 @@ func (response AcceptContactRequestdefaultApplicationProblemPlusJSONResponse) Vi
 	return err
 }
 
+type GetAgreementRequestObject struct {
+	RequestId RequestId `json:"request_id"`
+}
+
+type GetAgreementResponseObject interface {
+	VisitGetAgreementResponse(w http.ResponseWriter) error
+}
+
+type GetAgreement200JSONResponse Agreement
+
+func (response GetAgreement200JSONResponse) VisitGetAgreementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAgreement400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response GetAgreement400ApplicationProblemPlusJSONResponse) VisitGetAgreementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAgreement401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response GetAgreement401ApplicationProblemPlusJSONResponse) VisitGetAgreementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAgreement404ApplicationProblemPlusJSONResponse struct {
+	RequestNotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response GetAgreement404ApplicationProblemPlusJSONResponse) VisitGetAgreementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAgreement409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response GetAgreement409ApplicationProblemPlusJSONResponse) VisitGetAgreementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAgreementdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetAgreementdefaultApplicationProblemPlusJSONResponse) VisitGetAgreementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAgreementRequestObject struct {
+	RequestId RequestId `json:"request_id"`
+	Body      *PutAgreementJSONRequestBody
+}
+
+type PutAgreementResponseObject interface {
+	VisitPutAgreementResponse(w http.ResponseWriter) error
+}
+
+type PutAgreement200JSONResponse Agreement
+
+func (response PutAgreement200JSONResponse) VisitPutAgreementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAgreement400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response PutAgreement400ApplicationProblemPlusJSONResponse) VisitPutAgreementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAgreement401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response PutAgreement401ApplicationProblemPlusJSONResponse) VisitPutAgreementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAgreement404ApplicationProblemPlusJSONResponse struct {
+	RequestNotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response PutAgreement404ApplicationProblemPlusJSONResponse) VisitPutAgreementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAgreement409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response PutAgreement409ApplicationProblemPlusJSONResponse) VisitPutAgreementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAgreementdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PutAgreementdefaultApplicationProblemPlusJSONResponse) VisitPutAgreementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeclineContactRequestRequestObject struct {
 	RequestId RequestId `json:"request_id"`
 }
@@ -1259,6 +2479,222 @@ type DeclineContactRequestdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response DeclineContactRequestdefaultApplicationProblemPlusJSONResponse) VisitDeclineContactRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFavoritesRequestObject struct {
+}
+
+type ListFavoritesResponseObject interface {
+	VisitListFavoritesResponse(w http.ResponseWriter) error
+}
+
+type ListFavorites200JSONResponse FavoriteList
+
+func (response ListFavorites200JSONResponse) VisitListFavoritesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFavorites401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response ListFavorites401ApplicationProblemPlusJSONResponse) VisitListFavoritesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFavoritesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListFavoritesdefaultApplicationProblemPlusJSONResponse) VisitListFavoritesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveFavoriteRequestObject struct {
+	UserId UserId `json:"user_id"`
+}
+
+type RemoveFavoriteResponseObject interface {
+	VisitRemoveFavoriteResponse(w http.ResponseWriter) error
+}
+
+type RemoveFavorite204Response struct {
+}
+
+func (response RemoveFavorite204Response) VisitRemoveFavoriteResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RemoveFavorite400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response RemoveFavorite400ApplicationProblemPlusJSONResponse) VisitRemoveFavoriteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveFavorite401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response RemoveFavorite401ApplicationProblemPlusJSONResponse) VisitRemoveFavoriteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveFavoritedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RemoveFavoritedefaultApplicationProblemPlusJSONResponse) VisitRemoveFavoriteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddFavoriteRequestObject struct {
+	UserId UserId `json:"user_id"`
+}
+
+type AddFavoriteResponseObject interface {
+	VisitAddFavoriteResponse(w http.ResponseWriter) error
+}
+
+type AddFavorite204Response struct {
+}
+
+func (response AddFavorite204Response) VisitAddFavoriteResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type AddFavorite400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response AddFavorite400ApplicationProblemPlusJSONResponse) VisitAddFavoriteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddFavorite401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response AddFavorite401ApplicationProblemPlusJSONResponse) VisitAddFavoriteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddFavorite409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response AddFavorite409ApplicationProblemPlusJSONResponse) VisitAddFavoriteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddFavorite422ApplicationProblemPlusJSONResponse struct {
+	UnprocessableEntityApplicationProblemPlusJSONResponse
+}
+
+func (response AddFavorite422ApplicationProblemPlusJSONResponse) VisitAddFavoriteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddFavoritedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response AddFavoritedefaultApplicationProblemPlusJSONResponse) VisitAddFavoriteResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1425,14 +2861,148 @@ func (response PutMyContactdefaultApplicationProblemPlusJSONResponse) VisitPutMy
 	return err
 }
 
+type CreateReportRequestObject struct {
+	Body *CreateReportJSONRequestBody
+}
+
+type CreateReportResponseObject interface {
+	VisitCreateReportResponse(w http.ResponseWriter) error
+}
+
+type CreateReport201JSONResponse Report
+
+func (response CreateReport201JSONResponse) VisitCreateReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateReport400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response CreateReport400ApplicationProblemPlusJSONResponse) VisitCreateReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateReport401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response CreateReport401ApplicationProblemPlusJSONResponse) VisitCreateReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateReport409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response CreateReport409ApplicationProblemPlusJSONResponse) VisitCreateReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateReport422ApplicationProblemPlusJSONResponse struct {
+	UnprocessableEntityApplicationProblemPlusJSONResponse
+}
+
+func (response CreateReport422ApplicationProblemPlusJSONResponse) VisitCreateReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateReport429ApplicationProblemPlusJSONResponse struct {
+	TooManyRequestsApplicationProblemPlusJSONResponse
+}
+
+func (response CreateReport429ApplicationProblemPlusJSONResponse) VisitCreateReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateReportdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateReportdefaultApplicationProblemPlusJSONResponse) VisitCreateReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetAdminDatabase Состояние собственной базы данных сервиса
 	// (GET /v1/admin/database)
 	GetAdminDatabase(ctx context.Context, request GetAdminDatabaseRequestObject) (GetAdminDatabaseResponseObject, error)
+	// ListAdminReports Очередь жалоб
+	// (GET /v1/admin/reports)
+	ListAdminReports(ctx context.Context, request ListAdminReportsRequestObject) (ListAdminReportsResponseObject, error)
+	// ResolveAdminReport Отметить жалобу рассмотренной
+	// (POST /v1/admin/reports/{report_id}/resolve)
+	ResolveAdminReport(ctx context.Context, request ResolveAdminReportRequestObject) (ResolveAdminReportResponseObject, error)
 	// ListAdminTableRows Страница записей разрешённой таблицы
 	// (GET /v1/admin/tables/{table})
 	ListAdminTableRows(ctx context.Context, request ListAdminTableRowsRequestObject) (ListAdminTableRowsResponseObject, error)
+	// ListBlocks Пользователи, которых заблокировал текущий пользователь
+	// (GET /v1/blocks)
+	ListBlocks(ctx context.Context, request ListBlocksRequestObject) (ListBlocksResponseObject, error)
+	// UnblockUser Снять блокировку
+	// (DELETE /v1/blocks/{user_id})
+	UnblockUser(ctx context.Context, request UnblockUserRequestObject) (UnblockUserResponseObject, error)
+	// BlockUser Заблокировать пользователя
+	// (PUT /v1/blocks/{user_id})
+	BlockUser(ctx context.Context, request BlockUserRequestObject) (BlockUserResponseObject, error)
 	// ListContactRequests Запросы на контакт текущего пользователя
 	// (GET /v1/contact-requests)
 	ListContactRequests(ctx context.Context, request ListContactRequestsRequestObject) (ListContactRequestsResponseObject, error)
@@ -1442,15 +3012,33 @@ type StrictServerInterface interface {
 	// AcceptContactRequest Принять входящий запрос и обменяться контактами
 	// (POST /v1/contact-requests/{request_id}/accept)
 	AcceptContactRequest(ctx context.Context, request AcceptContactRequestRequestObject) (AcceptContactRequestResponseObject, error)
+	// GetAgreement Договорённости пары
+	// (GET /v1/contact-requests/{request_id}/agreement)
+	GetAgreement(ctx context.Context, request GetAgreementRequestObject) (GetAgreementResponseObject, error)
+	// PutAgreement Записать договорённости пары
+	// (PUT /v1/contact-requests/{request_id}/agreement)
+	PutAgreement(ctx context.Context, request PutAgreementRequestObject) (PutAgreementResponseObject, error)
 	// DeclineContactRequest Отклонить входящий запрос
 	// (POST /v1/contact-requests/{request_id}/decline)
 	DeclineContactRequest(ctx context.Context, request DeclineContactRequestRequestObject) (DeclineContactRequestResponseObject, error)
+	// ListFavorites Сохранённые текущим пользователем кандидаты
+	// (GET /v1/favorites)
+	ListFavorites(ctx context.Context, request ListFavoritesRequestObject) (ListFavoritesResponseObject, error)
+	// RemoveFavorite Убрать кандидата из избранного
+	// (DELETE /v1/favorites/{user_id})
+	RemoveFavorite(ctx context.Context, request RemoveFavoriteRequestObject) (RemoveFavoriteResponseObject, error)
+	// AddFavorite Сохранить кандидата
+	// (PUT /v1/favorites/{user_id})
+	AddFavorite(ctx context.Context, request AddFavoriteRequestObject) (AddFavoriteResponseObject, error)
 	// GetMyContact Контакт текущего пользователя
 	// (GET /v1/me/contact)
 	GetMyContact(ctx context.Context, request GetMyContactRequestObject) (GetMyContactResponseObject, error)
 	// PutMyContact Указать или заменить контакт текущего пользователя
 	// (PUT /v1/me/contact)
 	PutMyContact(ctx context.Context, request PutMyContactRequestObject) (PutMyContactResponseObject, error)
+	// CreateReport Пожаловаться на пользователя
+	// (POST /v1/reports)
+	CreateReport(ctx context.Context, request CreateReportRequestObject) (CreateReportResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1516,6 +3104,58 @@ func (sh *strictHandler) GetAdminDatabase(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// ListAdminReports operation middleware
+func (sh *strictHandler) ListAdminReports(w http.ResponseWriter, r *http.Request, params ListAdminReportsParams) {
+	var request ListAdminReportsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminReports(ctx, request.(ListAdminReportsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminReports")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminReportsResponseObject); ok {
+		if err := validResponse.VisitListAdminReportsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResolveAdminReport operation middleware
+func (sh *strictHandler) ResolveAdminReport(w http.ResponseWriter, r *http.Request, reportId openapi_types.UUID) {
+	var request ResolveAdminReportRequestObject
+
+	request.ReportId = reportId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResolveAdminReport(ctx, request.(ResolveAdminReportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResolveAdminReport")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResolveAdminReportResponseObject); ok {
+		if err := validResponse.VisitResolveAdminReportResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListAdminTableRows operation middleware
 func (sh *strictHandler) ListAdminTableRows(w http.ResponseWriter, r *http.Request, table string, params ListAdminTableRowsParams) {
 	var request ListAdminTableRowsRequestObject
@@ -1536,6 +3176,82 @@ func (sh *strictHandler) ListAdminTableRows(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListAdminTableRowsResponseObject); ok {
 		if err := validResponse.VisitListAdminTableRowsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListBlocks operation middleware
+func (sh *strictHandler) ListBlocks(w http.ResponseWriter, r *http.Request) {
+	var request ListBlocksRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListBlocks(ctx, request.(ListBlocksRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListBlocks")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListBlocksResponseObject); ok {
+		if err := validResponse.VisitListBlocksResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnblockUser operation middleware
+func (sh *strictHandler) UnblockUser(w http.ResponseWriter, r *http.Request, userId UserId) {
+	var request UnblockUserRequestObject
+
+	request.UserId = userId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnblockUser(ctx, request.(UnblockUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnblockUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnblockUserResponseObject); ok {
+		if err := validResponse.VisitUnblockUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// BlockUser operation middleware
+func (sh *strictHandler) BlockUser(w http.ResponseWriter, r *http.Request, userId UserId) {
+	var request BlockUserRequestObject
+
+	request.UserId = userId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.BlockUser(ctx, request.(BlockUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "BlockUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(BlockUserResponseObject); ok {
+		if err := validResponse.VisitBlockUserResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -1626,6 +3342,65 @@ func (sh *strictHandler) AcceptContactRequest(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// GetAgreement operation middleware
+func (sh *strictHandler) GetAgreement(w http.ResponseWriter, r *http.Request, requestId RequestId) {
+	var request GetAgreementRequestObject
+
+	request.RequestId = requestId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAgreement(ctx, request.(GetAgreementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAgreement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAgreementResponseObject); ok {
+		if err := validResponse.VisitGetAgreementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutAgreement operation middleware
+func (sh *strictHandler) PutAgreement(w http.ResponseWriter, r *http.Request, requestId RequestId) {
+	var request PutAgreementRequestObject
+
+	request.RequestId = requestId
+
+	var body PutAgreementJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutAgreement(ctx, request.(PutAgreementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutAgreement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutAgreementResponseObject); ok {
+		if err := validResponse.VisitPutAgreementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // DeclineContactRequest operation middleware
 func (sh *strictHandler) DeclineContactRequest(w http.ResponseWriter, r *http.Request, requestId RequestId) {
 	var request DeclineContactRequestRequestObject
@@ -1645,6 +3420,82 @@ func (sh *strictHandler) DeclineContactRequest(w http.ResponseWriter, r *http.Re
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeclineContactRequestResponseObject); ok {
 		if err := validResponse.VisitDeclineContactRequestResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListFavorites operation middleware
+func (sh *strictHandler) ListFavorites(w http.ResponseWriter, r *http.Request) {
+	var request ListFavoritesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListFavorites(ctx, request.(ListFavoritesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListFavorites")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListFavoritesResponseObject); ok {
+		if err := validResponse.VisitListFavoritesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RemoveFavorite operation middleware
+func (sh *strictHandler) RemoveFavorite(w http.ResponseWriter, r *http.Request, userId UserId) {
+	var request RemoveFavoriteRequestObject
+
+	request.UserId = userId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RemoveFavorite(ctx, request.(RemoveFavoriteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RemoveFavorite")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RemoveFavoriteResponseObject); ok {
+		if err := validResponse.VisitRemoveFavoriteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddFavorite operation middleware
+func (sh *strictHandler) AddFavorite(w http.ResponseWriter, r *http.Request, userId UserId) {
+	var request AddFavoriteRequestObject
+
+	request.UserId = userId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddFavorite(ctx, request.(AddFavoriteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddFavorite")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddFavoriteResponseObject); ok {
+		if err := validResponse.VisitAddFavoriteResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -1707,70 +3558,137 @@ func (sh *strictHandler) PutMyContact(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// CreateReport operation middleware
+func (sh *strictHandler) CreateReport(w http.ResponseWriter, r *http.Request) {
+	var request CreateReportRequestObject
+
+	var body CreateReportJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateReport(ctx, request.(CreateReportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateReport")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateReportResponseObject); ok {
+		if err := validResponse.VisitCreateReportResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
 // Stored as a slice of fixed-width chunks rather than one concatenated
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"bgy4Zf+m78NT6ouAyJvZesanDVNm827z3wMA",
+	"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",
+	"7TFy0xj2zXub/zcA",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

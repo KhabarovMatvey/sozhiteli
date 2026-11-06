@@ -134,6 +134,189 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/blocks': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Пользователи, которых заблокировал текущий пользователь
+     * @description Список целиком, новые первыми; число блокировок ограничено (500).
+     *     Клиент скрывает заблокированных из выдачи и списков запросов.
+     */
+    get: operations['listBlocks'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/blocks/{user_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Заблокировать пользователя
+     * @description Идемпотентно. Ожидающие запросы пары в обе стороны отклоняются, уже
+     *     раскрытые контакты перестают показываться обоим. Код 422 self_block -
+     *     блокировка самого себя; 409 block_limit - достигнут предел блокировок.
+     */
+    put: operations['blockUser'];
+    post?: never;
+    /**
+     * Снять блокировку
+     * @description Идемпотентно. Отклонённые при блокировке запросы не восстанавливаются.
+     */
+    delete: operations['unblockUser'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/reports': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Пожаловаться на пользователя
+     * @description Жалобу рассматривает администратор. Код 409 report_exists - открытая
+     *     жалоба на этого пользователя уже отправлена; 422 self_report - жалоба
+     *     на самого себя, comment_required - для reason = other нужен комментарий;
+     *     429 rate_limited - превышен суточный лимит жалоб.
+     */
+    post: operations['createReport'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/reports': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Очередь жалоб
+     * @description Только роль sozhiteli-admin. Порядок - по времени поступления. По умолчанию status = open.
+     */
+    get: operations['listAdminReports'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/reports/{report_id}/resolve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Отметить жалобу рассмотренной
+     * @description Только роль sozhiteli-admin. Меры к анкете принимаются отдельно в
+     *     Profile. Код 404 report_not_found; 409 already_resolved.
+     */
+    post: operations['resolveAdminReport'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/favorites': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Сохранённые текущим пользователем кандидаты
+     * @description Список целиком, новые первыми; не больше 200.
+     */
+    get: operations['listFavorites'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/favorites/{user_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Сохранить кандидата
+     * @description Идемпотентно. Код 422 self_favorite - себя сохранить нельзя;
+     *     409 favorite_limit - сохранено 200 человек.
+     */
+    put: operations['addFavorite'];
+    post?: never;
+    /**
+     * Убрать кандидата из избранного
+     * @description Идемпотентно.
+     */
+    delete: operations['removeFavorite'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/contact-requests/{request_id}/agreement': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Договорённости пары
+     * @description Доступно двум участникам запроса. Пока ничего не записано, items пуст.
+     *     Код 409 not_accepted - запрос не принят; blocked - между участниками
+     *     блокировка.
+     */
+    get: operations['getAgreement'];
+    /**
+     * Записать договорённости пары
+     * @description Заменяет записанное целиком; изменение видят оба участника. Коды 409 те
+     *     же, что у getAgreement.
+     */
+    put: operations['putAgreement'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -219,6 +402,105 @@ export interface components {
       /** @description null - больше страниц нет */
       next_cursor: string | null;
     };
+    Block: {
+      /**
+       * Format: uuid
+       * @description Заблокированный пользователь
+       */
+      user_id: string;
+      /** Format: date-time */
+      created_at: string;
+    };
+    BlockList: {
+      items: components['schemas']['Block'][];
+    };
+    /**
+     * @description fake - анкета не похожа на настоящего человека; commercial - риелтор,
+     *     посредник или реклама; offensive - оскорбления или давление;
+     *     fraud - просит деньги или предоплату; other - другое (пояснить в comment).
+     * @enum {string}
+     */
+    ReportReason: 'fake' | 'commercial' | 'offensive' | 'fraud' | 'other';
+    /** @enum {string} */
+    ReportStatus: 'open' | 'resolved';
+    ReportCreate: {
+      /** Format: uuid */
+      reported_id: string;
+      reason: components['schemas']['ReportReason'];
+      /** @description Пояснение своими словами; для reason = other обязательно (422 comment_required) */
+      comment?: string;
+    };
+    Report: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      reported_id: string;
+      reason: components['schemas']['ReportReason'];
+      status: components['schemas']['ReportStatus'];
+      /** Format: date-time */
+      created_at: string;
+    };
+    AdminReport: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      reporter_id: string;
+      /** Format: uuid */
+      reported_id: string;
+      reason: components['schemas']['ReportReason'];
+      comment: string;
+      status: components['schemas']['ReportStatus'];
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      resolved_at?: string;
+      /**
+       * Format: int64
+       * @description Открытых жалоб на того же пользователя
+       */
+      reported_open_count: number;
+    };
+    AdminReportPage: {
+      items: components['schemas']['AdminReport'][];
+      next_cursor: string | null;
+    };
+    Favorite: {
+      /** Format: uuid */
+      user_id: string;
+      /** Format: date-time */
+      created_at: string;
+    };
+    FavoriteList: {
+      items: components['schemas']['Favorite'][];
+    };
+    /**
+     * @description Текст по темам: cleaning - уборка; guests - гости; noise - шум и тишина;
+     *     payments - платежи и общие покупки; move_in - дата въезда и ключи;
+     *     other - другое. Пустые темы не передаются.
+     */
+    AgreementItems: {
+      cleaning?: string;
+      guests?: string;
+      noise?: string;
+      payments?: string;
+      move_in?: string;
+      other?: string;
+    };
+    AgreementInput: {
+      items: components['schemas']['AgreementItems'];
+    };
+    Agreement: {
+      /** Format: uuid */
+      request_id: string;
+      items: components['schemas']['AgreementItems'];
+      /**
+       * Format: date-time
+       * @description Отсутствует, пока ничего не записано
+       */
+      updated_at?: string;
+      /** @description Последнее изменение сделал текущий пользователь */
+      updated_by_me?: boolean;
+    };
   };
   responses: {
     /** @description Требуется роль sozhiteli-admin (code = forbidden) */
@@ -299,6 +581,7 @@ export interface components {
     };
   };
   parameters: {
+    UserId: string;
     RequestId: string;
   };
   requestBodies: never;
@@ -532,6 +815,298 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ContactRequest'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      404: components['responses']['RequestNotFound'];
+      409: components['responses']['Conflict'];
+      default: components['responses']['Error'];
+    };
+  };
+  listBlocks: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Блокировки */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BlockList'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      default: components['responses']['Error'];
+    };
+  };
+  blockUser: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        user_id: components['parameters']['UserId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Пользователь заблокирован */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      409: components['responses']['Conflict'];
+      422: components['responses']['UnprocessableEntity'];
+      default: components['responses']['Error'];
+    };
+  };
+  unblockUser: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        user_id: components['parameters']['UserId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Блокировки нет */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      default: components['responses']['Error'];
+    };
+  };
+  createReport: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ReportCreate'];
+      };
+    };
+    responses: {
+      /** @description Жалоба принята */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Report'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      409: components['responses']['Conflict'];
+      422: components['responses']['UnprocessableEntity'];
+      429: components['responses']['TooManyRequests'];
+      default: components['responses']['Error'];
+    };
+  };
+  listAdminReports: {
+    parameters: {
+      query?: {
+        status?: components['schemas']['ReportStatus'];
+        limit?: number;
+        cursor?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Страница жалоб */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminReportPage'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['AdminForbidden'];
+      default: components['responses']['Error'];
+    };
+  };
+  resolveAdminReport: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        report_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Жалоба рассмотрена */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminReport'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['AdminForbidden'];
+      /** @description Жалобы нет (code = report_not_found) */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['Problem'];
+        };
+      };
+      409: components['responses']['Conflict'];
+      default: components['responses']['Error'];
+    };
+  };
+  listFavorites: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Избранное */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['FavoriteList'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      default: components['responses']['Error'];
+    };
+  };
+  addFavorite: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        user_id: components['parameters']['UserId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Сохранён */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      409: components['responses']['Conflict'];
+      422: components['responses']['UnprocessableEntity'];
+      default: components['responses']['Error'];
+    };
+  };
+  removeFavorite: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        user_id: components['parameters']['UserId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Кандидата в избранном нет */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      default: components['responses']['Error'];
+    };
+  };
+  getAgreement: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        request_id: components['parameters']['RequestId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Договорённости */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Agreement'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      404: components['responses']['RequestNotFound'];
+      409: components['responses']['Conflict'];
+      default: components['responses']['Error'];
+    };
+  };
+  putAgreement: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        request_id: components['parameters']['RequestId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AgreementInput'];
+      };
+    };
+    responses: {
+      /** @description Записано */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Agreement'];
         };
       };
       400: components['responses']['BadRequest'];

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"sozhiteli.internal/platform/problem"
@@ -130,6 +131,20 @@ func snapshotFromRow(row store.ListChangedProfilesRow) (*ProfileSnapshot, error)
 		QuestionnaireVersion: row.QuestionnaireVersion,
 		Habits:               habits,
 		SearchStatus:         ProfileSnapshotSearchStatus(row.SearchStatus),
+		Scenario:             ProfileSnapshotScenario(row.Scenario),
+		AcceptsRoom:          row.AcceptsRoom,
+		UtilitiesRub:         optionalInt(row.UtilitiesRub),
+		DepositRub:           optionalInt(row.DepositRub),
+		PlaceNote:            row.PlaceNote,
+		RequiredHabits:       row.RequiredHabits,
 		UpdatedAt:            row.UpdatedAt,
 	}, nil
+}
+
+func optionalInt(v pgtype.Int4) *int32 {
+	if !v.Valid {
+		return nil
+	}
+	n := v.Int32
+	return &n
 }
