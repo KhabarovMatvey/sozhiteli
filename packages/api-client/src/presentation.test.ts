@@ -12,6 +12,7 @@ import {
   initials,
   matchLabel,
   matchTone,
+  networkProblem,
   normalizeForSearch,
   optionLabel,
   problemMessage,
@@ -32,6 +33,7 @@ describe('problem texts', () => {
     expect(problemMessage(problem('contact_required'))).toContain('укажите свой контакт');
     expect(problemMessage(problem('something_new'))).toBe('Что-то пошло не так. Попробуйте ещё раз.');
     expect(problemMessage(null)).toContain('Не удалось связаться');
+    expect(problemMessage(networkProblem)).toBe(problemMessage(null));
   });
 
   it('maps field errors by field name', () => {

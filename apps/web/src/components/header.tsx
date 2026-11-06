@@ -37,6 +37,7 @@ export function Header() {
     { href: '/requests', label: 'Запросы', count: incoming },
     { href: '/profile', label: 'Моя анкета' },
     { href: '/contact', label: 'Контакт' },
+    ...(auth.isAdmin ? [{ href: '/admin', label: 'Администрирование' }] : []),
   ];
 
   return (

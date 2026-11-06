@@ -32,3 +32,8 @@ ON CONFLICT (user_id) DO UPDATE
         habits                = EXCLUDED.habits,
         search_status         = EXCLUDED.search_status
 RETURNING *;
+
+-- name: DeleteProfile :execrows
+-- Удаляет анкету. Отметку для ленты изменений создаёт триггер profile_record_deletion.
+DELETE FROM profile
+WHERE user_id = sqlc.arg(user_id);

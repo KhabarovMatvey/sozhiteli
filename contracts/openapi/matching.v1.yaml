@@ -16,9 +16,85 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: admin
+    description: Административный просмотр данных сервиса
   - name: candidates
     description: Кандидаты и сравнение с текущим пользователем
 paths:
+  /v1/admin/database:
+    get:
+      tags: [admin]
+      operationId: getAdminDatabase
+      summary: Состояние собственной базы данных сервиса
+      description: Доступно только пользователю с ролью sozhiteli-admin. Только чтение.
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Размер базы и точное количество записей в разрешённых таблицах
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDatabase'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/admin/tables/{table}:
+    get:
+      tags: [admin]
+      operationId: listAdminTableRows
+      summary: Страница записей разрешённой таблицы
+      description: |
+        Только роль sozhiteli-admin. Таблицы доступны по фиксированному списку;
+        произвольные SQL и имена таблиц не поддерживаются. Курсор относится
+        к одному сервису и таблице. Контактные значения никогда не возвращаются.
+      x-implementation-status: implemented
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 50
+            default: 20
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 512
+      responses:
+        '200':
+          description: Строки в порядке первичного ключа; значения ячеек приведены к строкам
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTableRows'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          description: Таблица отсутствует в разрешённом списке (code = admin_table_not_found)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          $ref: '#/components/responses/Error'
   /v1/candidates:
     get:
       tags: [candidates]
@@ -142,6 +218,12 @@ components:
         type: string
         maxLength: 256
   responses:
+    AdminForbidden:
+      description: Требуется роль sozhiteli-admin (code = forbidden)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     BadRequest:
       description: Запрос не соответствует схеме (code = invalid_request)
       content:
@@ -170,6 +252,57 @@ components:
           schema:
             $ref: '#/components/schemas/Problem'
   schemas:
+    AdminDatabase:
+      type: object
+      required: [service, database, size_bytes, tables]
+      properties:
+        service:
+          type: string
+        database:
+          type: string
+        size_bytes:
+          type: integer
+          format: int64
+          minimum: 0
+        tables:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminTableSummary'
+    AdminTableSummary:
+      type: object
+      required: [name, label, row_count, columns]
+      properties:
+        name:
+          type: string
+        label:
+          type: string
+        row_count:
+          type: integer
+          format: int64
+          minimum: 0
+        columns:
+          type: array
+          items:
+            type: string
+    AdminTableRows:
+      type: object
+      required: [table, columns, rows, next_cursor]
+      properties:
+        table:
+          type: string
+        columns:
+          type: array
+          items:
+            type: string
+        rows:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        next_cursor:
+          type: string
+          nullable: true
     Problem:
       type: object
       description: Единый формат ошибки (RFC 9457). Клиент ветвится по полю code.

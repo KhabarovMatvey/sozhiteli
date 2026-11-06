@@ -12,6 +12,7 @@ import (
 	"sozhiteli.internal/platform/httpserver"
 	"sozhiteli.internal/platform/logging"
 	"sozhiteli.internal/platform/postgres"
+	"sozhiteli.internal/profile/internal/adminusers"
 	"sozhiteli.internal/profile/internal/api"
 	"sozhiteli.internal/profile/internal/config"
 	"sozhiteli.internal/profile/internal/internalapi"
@@ -55,7 +56,11 @@ func serve(ctx context.Context) error {
 	})
 
 	queries := store.New(pool)
-	publicAPI, err := api.NewHandler(logger, userVerifier, api.NewServer(queries))
+	directory, err := adminusers.New(cfg.AdminUsers)
+	if err != nil {
+		return err
+	}
+	publicAPI, err := api.NewHandler(logger, userVerifier, api.NewServer(queries).WithAdminUsers(directory).WithAuditLog(logger))
 	if err != nil {
 		return err
 	}

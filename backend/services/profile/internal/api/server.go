@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -29,8 +31,10 @@ import (
 //  4. set x-implementation-status: implemented in the contract and add a
 //     contract test next to the existing ones.
 type Server struct {
-	queries *store.Queries
-	now     func() time.Time
+	queries    *store.Queries
+	now        func() time.Time
+	adminUsers AdminUserDirectory
+	audit      *slog.Logger
 }
 
 // NewServer returns the public API implementation.
@@ -101,25 +105,33 @@ func (s *Server) PutMyProfile(ctx context.Context, request PutMyProfileRequestOb
 	if request.Body == nil {
 		return nil, problem.InvalidRequest("request body is required")
 	}
-	body := *request.Body
+	profile, err := s.saveProfile(ctx, userID, *request.Body)
+	if err != nil {
+		return nil, err
+	}
+	return PutMyProfile200JSONResponse(profile), nil
+}
 
+// saveProfile validates and stores a whole profile for one user. The caller
+// decides who the user is; this function never reads the identity from the request.
+func (s *Server) saveProfile(ctx context.Context, userID uuid.UUID, body ProfileInput) (Profile, error) {
 	in := profilerules.Normalize(rulesInput(body))
 	fieldErrors := profilerules.Validate(in, s.now(), questionnaire.Current())
 
 	cityKnown, err := s.cityExists(ctx, body.CityId)
 	if err != nil {
-		return nil, err
+		return Profile{}, err
 	}
 	if !cityKnown {
 		fieldErrors = append(fieldErrors, unknownCity())
 	}
 	if len(fieldErrors) > 0 {
-		return nil, problem.Validation(fieldErrors...)
+		return Profile{}, problem.Validation(fieldErrors...)
 	}
 
 	habits, err := json.Marshal(in.Habits)
 	if err != nil {
-		return nil, fmt.Errorf("encode habits: %w", err)
+		return Profile{}, fmt.Errorf("encode habits: %w", err)
 	}
 	row, err := s.queries.UpsertProfile(ctx, store.UpsertProfileParams{
 		UserID:               userID,
@@ -140,16 +152,12 @@ func (s *Server) PutMyProfile(ctx context.Context, request PutMyProfileRequestOb
 	})
 	if isForeignKeyViolation(err) {
 		// The city was removed between the check and the write.
-		return nil, problem.Validation(unknownCity())
+		return Profile{}, problem.Validation(unknownCity())
 	}
 	if err != nil {
-		return nil, fmt.Errorf("save profile: %w", err)
+		return Profile{}, fmt.Errorf("save profile: %w", err)
 	}
-	profile, err := profileFromRow(row)
-	if err != nil {
-		return nil, err
-	}
-	return PutMyProfile200JSONResponse(profile), nil
+	return profileFromRow(row)
 }
 
 func (s *Server) cityExists(ctx context.Context, id int32) (bool, error) {

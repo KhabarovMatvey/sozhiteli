@@ -31,7 +31,7 @@ func NewHandler(logger *slog.Logger, verifier *auth.Verifier, server StrictServe
 	router := chi.NewRouter()
 	router.NotFound(httpserver.NotFound)
 	router.MethodNotAllowed(httpserver.MethodNotAllowed)
-	router.Use(verifier.Middleware(), openapi.RequestValidator(spec))
+	router.Use(adminNoStore, verifier.Middleware(), openapi.RequestValidator(spec))
 
 	strict := NewStrictHandlerWithOptions(server, nil, StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, _ error) {

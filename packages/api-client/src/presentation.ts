@@ -33,6 +33,18 @@ const problemMessages: Record<string, string> = {
   service_unavailable: 'Сервис временно недоступен. Попробуйте через минуту.',
   request_timeout: 'Сервер не успел ответить. Попробуйте ещё раз.',
   internal_error: 'Что-то пошло не так. Попробуйте ещё раз.',
+  network: 'Не удалось связаться с сервером. Проверьте подключение.',
+};
+
+/**
+ * Ошибка, которой нет в ответе сервера: запрос не дошёл до сервера или ответ
+ * не удалось прочитать (например, браузер заблокировал его по CORS).
+ */
+export const networkProblem: Problem = {
+  type: 'urn:sozhiteli:problem:network',
+  title: 'Network error',
+  status: 0,
+  code: 'network',
 };
 
 /**

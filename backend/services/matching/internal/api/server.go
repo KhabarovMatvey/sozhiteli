@@ -143,8 +143,8 @@ func (s *Server) GetCandidate(ctx context.Context, request GetCandidateRequestOb
 	}
 
 	c := card(viewer, candidate, s.now())
-	// The fact of seeing the comparison is what the experiment measures, so
-	// failing to record it fails the operation.
+	// Record views for auxiliary product analytics. Research outcomes require
+	// participant reports; a view alone does not establish household influence.
 	err = s.queries.RecordCandidateView(ctx, store.RecordCandidateViewParams{
 		ViewerID:      viewer.row.UserID,
 		CandidateID:   row.UserID,

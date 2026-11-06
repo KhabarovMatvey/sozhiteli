@@ -122,6 +122,7 @@ services:
       # Подставляются в keycloak/realm.json при первом импорте.
       PUBLIC_URL: https://${DOMAIN}
       MATCHING_CLIENT_SECRET: ${MATCHING_CLIENT_SECRET:?}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-}
     mem_limit: 1g
     volumes:
       - ./keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
@@ -164,6 +165,11 @@ services:
       <<: *service-env
       DATABASE_URL: postgres://profile_app:${PROFILE_APP_PASSWORD}@postgres:5432/profile_db?sslmode=disable
       INTERNAL_OIDC_AUDIENCE: sozhiteli-internal
+      # Серверный клиент только для чтения пользователей во встроенной админке.
+      KEYCLOAK_ADMIN_BASE_URL: http://keycloak:8080/id
+      KEYCLOAK_ADMIN_REALM: sozhiteli
+      KEYCLOAK_ADMIN_CLIENT_ID: profile-admin-reader
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-}
     healthcheck:
       test: ["CMD", "/profile", "healthcheck"]
       interval: 5s

@@ -1,6 +1,7 @@
 'use client';
 
 import type { Problem, ProfileSchemas } from '@sozhiteli/api-client';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { ProfileForm } from '@/components/profile-form';
@@ -50,7 +51,14 @@ function ProfileScreen() {
         initial={profile}
         questionnaire={questionnaire.data}
         cities={cities.data}
+        save={(body) => api.profile.PUT('/v1/me/profile', { body })}
         onSaved={setProfile}
+        successMessage={
+          <>
+            Анкета сохранена. Через несколько секунд она появится у других.{' '}
+            <Link href="/candidates">Смотреть кандидатов →</Link>
+          </>
+        }
       />
     </>
   );

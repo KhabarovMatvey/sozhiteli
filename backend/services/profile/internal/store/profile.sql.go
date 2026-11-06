@@ -12,6 +12,20 @@ import (
 	"github.com/google/uuid"
 )
 
+const deleteProfile = `-- name: DeleteProfile :execrows
+DELETE FROM profile
+WHERE user_id = $1
+`
+
+// Удаляет анкету. Отметку для ленты изменений создаёт триггер profile_record_deletion.
+func (q *Queries) DeleteProfile(ctx context.Context, userID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteProfile, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getProfile = `-- name: GetProfile :one
 
 SELECT user_id, display_name, birth_year, gender, occupation, city_id, districts, budget_min_rub, budget_max_rub, move_in_from, move_in_to, roommate_gender, questionnaire_version, habits, search_status, created_at, updated_at, feed_version

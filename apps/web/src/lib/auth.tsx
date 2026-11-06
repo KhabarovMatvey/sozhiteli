@@ -9,6 +9,7 @@
  * через useAuth(); access token наружу отдаёт только getAccessToken().
  */
 import { User, UserManager, WebStorageStateStore } from 'oidc-client-ts';
+import { ADMIN_ROLE, hasRealmRole } from '@sozhiteli/api-client';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { config } from './config';
@@ -41,6 +42,8 @@ export interface AuthState {
   status: AuthStatus;
   /** Идентификатор пользователя (claim sub) или null. */
   userId: string | null;
+  /** Только подсказка для навигации; backend отдельно проверяет роль. */
+  isAdmin: boolean;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   /** Действующий access token или null. Используется клиентом API. */
@@ -56,12 +59,14 @@ function activeUser(user: User | null): User | null {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [userId, setUserId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const userManager = getUserManager();
     const apply = (user: User | null) => {
       const current = activeUser(user);
       setUserId(current?.profile.sub ?? null);
+      setIsAdmin(hasRealmRole(current?.access_token, ADMIN_ROLE));
       setStatus(current ? 'authenticated' : 'anonymous');
     };
 
@@ -87,8 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthState>(
-    () => ({ status, userId, signIn, signOut, getAccessToken }),
-    [status, userId, signIn, signOut, getAccessToken],
+    () => ({ status, userId, isAdmin, signIn, signOut, getAccessToken }),
+    [status, userId, isAdmin, signIn, signOut, getAccessToken],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

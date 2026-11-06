@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -18,8 +19,24 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
+	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for AdminDatabaseService.
+const (
+	AdminDatabaseServiceProfile AdminDatabaseService = "profile"
+)
+
+// Valid indicates whether the value is a known member of the AdminDatabaseService enum.
+func (e AdminDatabaseService) Valid() bool {
+	switch e {
+	case AdminDatabaseServiceProfile:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for Gender.
 const (
@@ -73,6 +90,83 @@ func (e SearchStatus) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// Defines values for ListAdminTableRowsParamsTable.
+const (
+	ListAdminTableRowsParamsTableCity            ListAdminTableRowsParamsTable = "city"
+	ListAdminTableRowsParamsTableProfile         ListAdminTableRowsParamsTable = "profile"
+	ListAdminTableRowsParamsTableProfileDeletion ListAdminTableRowsParamsTable = "profile_deletion"
+)
+
+// Valid indicates whether the value is a known member of the ListAdminTableRowsParamsTable enum.
+func (e ListAdminTableRowsParamsTable) Valid() bool {
+	switch e {
+	case ListAdminTableRowsParamsTableCity:
+		return true
+	case ListAdminTableRowsParamsTableProfile:
+		return true
+	case ListAdminTableRowsParamsTableProfileDeletion:
+		return true
+	default:
+		return false
+	}
+}
+
+// AdminDatabase defines model for AdminDatabase.
+type AdminDatabase struct {
+	Database  string               `json:"database"`
+	Service   AdminDatabaseService `json:"service"`
+	SizeBytes int64                `json:"size_bytes"`
+	Tables    []AdminTableSummary  `json:"tables"`
+}
+
+// AdminDatabaseService defines model for AdminDatabase.Service.
+type AdminDatabaseService string
+
+// AdminProfileList defines model for AdminProfileList.
+type AdminProfileList struct {
+	Items      []Profile `json:"items"`
+	NextCursor *string   `json:"next_cursor"`
+}
+
+// AdminTableRows defines model for AdminTableRows.
+type AdminTableRows struct {
+	Columns    []string   `json:"columns"`
+	NextCursor *string    `json:"next_cursor"`
+	Rows       [][]string `json:"rows"`
+	Table      string     `json:"table"`
+}
+
+// AdminTableSummary defines model for AdminTableSummary.
+type AdminTableSummary struct {
+	Columns  []string `json:"columns"`
+	Label    string   `json:"label"`
+	Name     string   `json:"name"`
+	RowCount int64    `json:"row_count"`
+}
+
+// AdminUser defines model for AdminUser.
+type AdminUser struct {
+	CreatedAt     *time.Time `json:"created_at"`
+	Email         string     `json:"email"`
+	EmailVerified bool       `json:"email_verified"`
+	Enabled       bool       `json:"enabled"`
+
+	// HasProfile Есть ли у учётной записи анкета в Profile
+	HasProfile     bool               `json:"has_profile"`
+	Id             openapi_types.UUID `json:"id"`
+	ServiceAccount bool               `json:"service_account"`
+	Username       string             `json:"username"`
+}
+
+// AdminUserList defines model for AdminUserList.
+type AdminUserList struct {
+	Items      []AdminUser `json:"items"`
+	NextCursor *string     `json:"next_cursor"`
+
+	// Total Число учётных записей, возвращаемых Keycloak с тем же поисковым фильтром
+	Total int64 `json:"total"`
 }
 
 // City defines model for City.
@@ -213,11 +307,20 @@ type RoommateGender string
 // SearchStatus searching — анкета показывается кандидатам; paused — скрыта из выдачи
 type SearchStatus string
 
+// AdminCursor defines model for AdminCursor.
+type AdminCursor = string
+
+// AdminLimit defines model for AdminLimit.
+type AdminLimit = int32
+
 // BadRequest Единый формат ошибки (RFC 9457). Клиент ветвится по полю code.
 type BadRequest = Problem
 
 // Error Единый формат ошибки (RFC 9457). Клиент ветвится по полю code.
 type Error = Problem
+
+// Forbidden Единый формат ошибки (RFC 9457). Клиент ветвится по полю code.
+type Forbidden = Problem
 
 // Unauthorized Единый формат ошибки (RFC 9457). Клиент ветвится по полю code.
 type Unauthorized = Problem
@@ -225,11 +328,64 @@ type Unauthorized = Problem
 // UnprocessableEntity Единый формат ошибки (RFC 9457). Клиент ветвится по полю code.
 type UnprocessableEntity = Problem
 
+// ListAdminProfilesParams defines parameters for ListAdminProfiles.
+type ListAdminProfilesParams struct {
+	Limit *AdminLimit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Непрозрачный курсор предыдущей страницы; связан с таблицей или поиском
+	Cursor *AdminCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Search *string      `form:"search,omitempty" json:"search,omitempty"`
+}
+
+// ListAdminTableRowsParams defines parameters for ListAdminTableRows.
+type ListAdminTableRowsParams struct {
+	Limit *AdminLimit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Непрозрачный курсор предыдущей страницы; связан с таблицей или поиском
+	Cursor *AdminCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// ListAdminTableRowsParamsTable defines parameters for ListAdminTableRows.
+type ListAdminTableRowsParamsTable string
+
+// ListAdminUsersParams defines parameters for ListAdminUsers.
+type ListAdminUsersParams struct {
+	Limit *AdminLimit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Непрозрачный курсор предыдущей страницы; связан с таблицей или поиском
+	Cursor *AdminCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Search *string      `form:"search,omitempty" json:"search,omitempty"`
+}
+
+// PutAdminProfileJSONRequestBody defines body for PutAdminProfile for application/json ContentType.
+type PutAdminProfileJSONRequestBody = ProfileInput
+
 // PutMyProfileJSONRequestBody defines body for PutMyProfile for application/json ContentType.
 type PutMyProfileJSONRequestBody = ProfileInput
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetAdminDatabase Размер базы Profile и число строк в разрешённых таблицах
+	// (GET /v1/admin/database)
+	GetAdminDatabase(w http.ResponseWriter, r *http.Request)
+	// ListAdminProfiles Все анкеты пользователей
+	// (GET /v1/admin/profiles)
+	ListAdminProfiles(w http.ResponseWriter, r *http.Request, params ListAdminProfilesParams)
+	// ListAdminTableRows Строки разрешённой таблицы Profile
+	// (GET /v1/admin/tables/{table})
+	ListAdminTableRows(w http.ResponseWriter, r *http.Request, table ListAdminTableRowsParamsTable, params ListAdminTableRowsParams)
+	// ListAdminUsers Все зарегистрированные учётные записи
+	// (GET /v1/admin/users)
+	ListAdminUsers(w http.ResponseWriter, r *http.Request, params ListAdminUsersParams)
+	// DeleteAdminProfile Удалить анкету пользователя
+	// (DELETE /v1/admin/users/{user_id}/profile)
+	DeleteAdminProfile(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID)
+	// GetAdminProfile Анкета пользователя
+	// (GET /v1/admin/users/{user_id}/profile)
+	GetAdminProfile(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID)
+	// PutAdminProfile Создать или заменить анкету пользователя
+	// (PUT /v1/admin/users/{user_id}/profile)
+	PutAdminProfile(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID)
 	// ListCities Города, в которых доступен поиск
 	// (GET /v1/cities)
 	ListCities(w http.ResponseWriter, r *http.Request)
@@ -247,6 +403,48 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// GetAdminDatabase Размер базы Profile и число строк в разрешённых таблицах
+// (GET /v1/admin/database)
+func (_ Unimplemented) GetAdminDatabase(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListAdminProfiles Все анкеты пользователей
+// (GET /v1/admin/profiles)
+func (_ Unimplemented) ListAdminProfiles(w http.ResponseWriter, r *http.Request, params ListAdminProfilesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListAdminTableRows Строки разрешённой таблицы Profile
+// (GET /v1/admin/tables/{table})
+func (_ Unimplemented) ListAdminTableRows(w http.ResponseWriter, r *http.Request, table ListAdminTableRowsParamsTable, params ListAdminTableRowsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListAdminUsers Все зарегистрированные учётные записи
+// (GET /v1/admin/users)
+func (_ Unimplemented) ListAdminUsers(w http.ResponseWriter, r *http.Request, params ListAdminUsersParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteAdminProfile Удалить анкету пользователя
+// (DELETE /v1/admin/users/{user_id}/profile)
+func (_ Unimplemented) DeleteAdminProfile(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminProfile Анкета пользователя
+// (GET /v1/admin/users/{user_id}/profile)
+func (_ Unimplemented) GetAdminProfile(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutAdminProfile Создать или заменить анкету пользователя
+// (PUT /v1/admin/users/{user_id}/profile)
+func (_ Unimplemented) PutAdminProfile(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // ListCities Города, в которых доступен поиск
 // (GET /v1/cities)
@@ -280,6 +478,271 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetAdminDatabase operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminDatabase(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminDatabase(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminProfiles operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminProfiles(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminProfilesParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: "int32"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", r.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "search"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminProfiles(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminTableRows operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminTableRows(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "table" -------------
+	var table ListAdminTableRowsParamsTable
+
+	err = runtime.BindStyledParameterWithOptions("simple", "table", chi.URLParam(r, "table"), &table, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "table", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminTableRowsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: "int32"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminTableRows(w, r, table, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminUsers operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminUsers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminUsersParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: "int32"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", r.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "search"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminUsers(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAdminProfile operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminProfile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "user_id" -------------
+	var userId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "user_id", chi.URLParam(r, "user_id"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAdminProfile(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminProfile operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminProfile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "user_id" -------------
+	var userId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "user_id", chi.URLParam(r, "user_id"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminProfile(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutAdminProfile operation middleware
+func (siw *ServerInterfaceWrapper) PutAdminProfile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "user_id" -------------
+	var userId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "user_id", chi.URLParam(r, "user_id"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutAdminProfile(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ListCities operation middleware
 func (siw *ServerInterfaceWrapper) ListCities(w http.ResponseWriter, r *http.Request) {
@@ -451,6 +914,27 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/admin/users", wrapper.ListAdminUsers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/admin/database", wrapper.GetAdminDatabase)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/admin/tables/{table}", wrapper.ListAdminTableRows)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/admin/profiles", wrapper.ListAdminProfiles)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/v1/admin/users/{user_id}/profile", wrapper.DeleteAdminProfile)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/admin/users/{user_id}/profile", wrapper.GetAdminProfile)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/v1/admin/users/{user_id}/profile", wrapper.PutAdminProfile)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/v1/questionnaire", wrapper.GetQuestionnaire)
 	})
 	r.Group(func(r chi.Router) {
@@ -470,9 +954,673 @@ type BadRequestApplicationProblemPlusJSONResponse Problem
 
 type ErrorApplicationProblemPlusJSONResponse Problem
 
+type ForbiddenApplicationProblemPlusJSONResponse Problem
+
 type UnauthorizedApplicationProblemPlusJSONResponse Problem
 
 type UnprocessableEntityApplicationProblemPlusJSONResponse Problem
+
+type GetAdminDatabaseRequestObject struct {
+}
+
+type GetAdminDatabaseResponseObject interface {
+	VisitGetAdminDatabaseResponse(w http.ResponseWriter) error
+}
+
+type GetAdminDatabase200JSONResponse AdminDatabase
+
+func (response GetAdminDatabase200JSONResponse) VisitGetAdminDatabaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminDatabase401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response GetAdminDatabase401ApplicationProblemPlusJSONResponse) VisitGetAdminDatabaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminDatabase403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response GetAdminDatabase403ApplicationProblemPlusJSONResponse) VisitGetAdminDatabaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminDatabasedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetAdminDatabasedefaultApplicationProblemPlusJSONResponse) VisitGetAdminDatabaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminProfilesRequestObject struct {
+	Params ListAdminProfilesParams
+}
+
+type ListAdminProfilesResponseObject interface {
+	VisitListAdminProfilesResponse(w http.ResponseWriter) error
+}
+
+type ListAdminProfiles200JSONResponse AdminProfileList
+
+func (response ListAdminProfiles200JSONResponse) VisitListAdminProfilesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminProfiles400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response ListAdminProfiles400ApplicationProblemPlusJSONResponse) VisitListAdminProfilesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminProfiles401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response ListAdminProfiles401ApplicationProblemPlusJSONResponse) VisitListAdminProfilesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminProfiles403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response ListAdminProfiles403ApplicationProblemPlusJSONResponse) VisitListAdminProfilesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminProfilesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListAdminProfilesdefaultApplicationProblemPlusJSONResponse) VisitListAdminProfilesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminTableRowsRequestObject struct {
+	Table  ListAdminTableRowsParamsTable `json:"table"`
+	Params ListAdminTableRowsParams
+}
+
+type ListAdminTableRowsResponseObject interface {
+	VisitListAdminTableRowsResponse(w http.ResponseWriter) error
+}
+
+type ListAdminTableRows200JSONResponse AdminTableRows
+
+func (response ListAdminTableRows200JSONResponse) VisitListAdminTableRowsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminTableRows400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response ListAdminTableRows400ApplicationProblemPlusJSONResponse) VisitListAdminTableRowsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminTableRows401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response ListAdminTableRows401ApplicationProblemPlusJSONResponse) VisitListAdminTableRowsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminTableRows403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response ListAdminTableRows403ApplicationProblemPlusJSONResponse) VisitListAdminTableRowsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminTableRows404ApplicationProblemPlusJSONResponse struct {
+	ErrorApplicationProblemPlusJSONResponse
+}
+
+func (response ListAdminTableRows404ApplicationProblemPlusJSONResponse) VisitListAdminTableRowsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminTableRowsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListAdminTableRowsdefaultApplicationProblemPlusJSONResponse) VisitListAdminTableRowsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminUsersRequestObject struct {
+	Params ListAdminUsersParams
+}
+
+type ListAdminUsersResponseObject interface {
+	VisitListAdminUsersResponse(w http.ResponseWriter) error
+}
+
+type ListAdminUsers200JSONResponse AdminUserList
+
+func (response ListAdminUsers200JSONResponse) VisitListAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminUsers400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response ListAdminUsers400ApplicationProblemPlusJSONResponse) VisitListAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminUsers401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response ListAdminUsers401ApplicationProblemPlusJSONResponse) VisitListAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminUsers403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response ListAdminUsers403ApplicationProblemPlusJSONResponse) VisitListAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminUsers503ApplicationProblemPlusJSONResponse struct {
+	ErrorApplicationProblemPlusJSONResponse
+}
+
+func (response ListAdminUsers503ApplicationProblemPlusJSONResponse) VisitListAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminUsersdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListAdminUsersdefaultApplicationProblemPlusJSONResponse) VisitListAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminProfileRequestObject struct {
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+type DeleteAdminProfileResponseObject interface {
+	VisitDeleteAdminProfileResponse(w http.ResponseWriter) error
+}
+
+type DeleteAdminProfile204Response struct {
+}
+
+func (response DeleteAdminProfile204Response) VisitDeleteAdminProfileResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAdminProfile401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteAdminProfile401ApplicationProblemPlusJSONResponse) VisitDeleteAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminProfile403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteAdminProfile403ApplicationProblemPlusJSONResponse) VisitDeleteAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminProfile404ApplicationProblemPlusJSONResponse Problem
+
+func (response DeleteAdminProfile404ApplicationProblemPlusJSONResponse) VisitDeleteAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminProfiledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteAdminProfiledefaultApplicationProblemPlusJSONResponse) VisitDeleteAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProfileRequestObject struct {
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+type GetAdminProfileResponseObject interface {
+	VisitGetAdminProfileResponse(w http.ResponseWriter) error
+}
+
+type GetAdminProfile200JSONResponse Profile
+
+func (response GetAdminProfile200JSONResponse) VisitGetAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProfile401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response GetAdminProfile401ApplicationProblemPlusJSONResponse) VisitGetAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProfile403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response GetAdminProfile403ApplicationProblemPlusJSONResponse) VisitGetAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProfile404ApplicationProblemPlusJSONResponse Problem
+
+func (response GetAdminProfile404ApplicationProblemPlusJSONResponse) VisitGetAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProfiledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetAdminProfiledefaultApplicationProblemPlusJSONResponse) VisitGetAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminProfileRequestObject struct {
+	UserId openapi_types.UUID `json:"user_id"`
+	Body   *PutAdminProfileJSONRequestBody
+}
+
+type PutAdminProfileResponseObject interface {
+	VisitPutAdminProfileResponse(w http.ResponseWriter) error
+}
+
+type PutAdminProfile200JSONResponse Profile
+
+func (response PutAdminProfile200JSONResponse) VisitPutAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminProfile400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response PutAdminProfile400ApplicationProblemPlusJSONResponse) VisitPutAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminProfile401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response PutAdminProfile401ApplicationProblemPlusJSONResponse) VisitPutAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminProfile403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response PutAdminProfile403ApplicationProblemPlusJSONResponse) VisitPutAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminProfile404ApplicationProblemPlusJSONResponse Problem
+
+func (response PutAdminProfile404ApplicationProblemPlusJSONResponse) VisitPutAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminProfile422ApplicationProblemPlusJSONResponse struct {
+	UnprocessableEntityApplicationProblemPlusJSONResponse
+}
+
+func (response PutAdminProfile422ApplicationProblemPlusJSONResponse) VisitPutAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminProfile503ApplicationProblemPlusJSONResponse struct {
+	ErrorApplicationProblemPlusJSONResponse
+}
+
+func (response PutAdminProfile503ApplicationProblemPlusJSONResponse) VisitPutAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminProfiledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PutAdminProfiledefaultApplicationProblemPlusJSONResponse) VisitPutAdminProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
 
 type ListCitiesRequestObject struct {
 }
@@ -739,6 +1887,27 @@ func (response GetQuestionnairedefaultApplicationProblemPlusJSONResponse) VisitG
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetAdminDatabase Размер базы Profile и число строк в разрешённых таблицах
+	// (GET /v1/admin/database)
+	GetAdminDatabase(ctx context.Context, request GetAdminDatabaseRequestObject) (GetAdminDatabaseResponseObject, error)
+	// ListAdminProfiles Все анкеты пользователей
+	// (GET /v1/admin/profiles)
+	ListAdminProfiles(ctx context.Context, request ListAdminProfilesRequestObject) (ListAdminProfilesResponseObject, error)
+	// ListAdminTableRows Строки разрешённой таблицы Profile
+	// (GET /v1/admin/tables/{table})
+	ListAdminTableRows(ctx context.Context, request ListAdminTableRowsRequestObject) (ListAdminTableRowsResponseObject, error)
+	// ListAdminUsers Все зарегистрированные учётные записи
+	// (GET /v1/admin/users)
+	ListAdminUsers(ctx context.Context, request ListAdminUsersRequestObject) (ListAdminUsersResponseObject, error)
+	// DeleteAdminProfile Удалить анкету пользователя
+	// (DELETE /v1/admin/users/{user_id}/profile)
+	DeleteAdminProfile(ctx context.Context, request DeleteAdminProfileRequestObject) (DeleteAdminProfileResponseObject, error)
+	// GetAdminProfile Анкета пользователя
+	// (GET /v1/admin/users/{user_id}/profile)
+	GetAdminProfile(ctx context.Context, request GetAdminProfileRequestObject) (GetAdminProfileResponseObject, error)
+	// PutAdminProfile Создать или заменить анкету пользователя
+	// (PUT /v1/admin/users/{user_id}/profile)
+	PutAdminProfile(ctx context.Context, request PutAdminProfileRequestObject) (PutAdminProfileResponseObject, error)
 	// ListCities Города, в которых доступен поиск
 	// (GET /v1/cities)
 	ListCities(ctx context.Context, request ListCitiesRequestObject) (ListCitiesResponseObject, error)
@@ -790,6 +1959,194 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetAdminDatabase operation middleware
+func (sh *strictHandler) GetAdminDatabase(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminDatabaseRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminDatabase(ctx, request.(GetAdminDatabaseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminDatabase")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminDatabaseResponseObject); ok {
+		if err := validResponse.VisitGetAdminDatabaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAdminProfiles operation middleware
+func (sh *strictHandler) ListAdminProfiles(w http.ResponseWriter, r *http.Request, params ListAdminProfilesParams) {
+	var request ListAdminProfilesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminProfiles(ctx, request.(ListAdminProfilesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminProfiles")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminProfilesResponseObject); ok {
+		if err := validResponse.VisitListAdminProfilesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAdminTableRows operation middleware
+func (sh *strictHandler) ListAdminTableRows(w http.ResponseWriter, r *http.Request, table ListAdminTableRowsParamsTable, params ListAdminTableRowsParams) {
+	var request ListAdminTableRowsRequestObject
+
+	request.Table = table
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminTableRows(ctx, request.(ListAdminTableRowsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminTableRows")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminTableRowsResponseObject); ok {
+		if err := validResponse.VisitListAdminTableRowsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAdminUsers operation middleware
+func (sh *strictHandler) ListAdminUsers(w http.ResponseWriter, r *http.Request, params ListAdminUsersParams) {
+	var request ListAdminUsersRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminUsers(ctx, request.(ListAdminUsersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminUsers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminUsersResponseObject); ok {
+		if err := validResponse.VisitListAdminUsersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAdminProfile operation middleware
+func (sh *strictHandler) DeleteAdminProfile(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID) {
+	var request DeleteAdminProfileRequestObject
+
+	request.UserId = userId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAdminProfile(ctx, request.(DeleteAdminProfileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAdminProfile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAdminProfileResponseObject); ok {
+		if err := validResponse.VisitDeleteAdminProfileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminProfile operation middleware
+func (sh *strictHandler) GetAdminProfile(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID) {
+	var request GetAdminProfileRequestObject
+
+	request.UserId = userId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminProfile(ctx, request.(GetAdminProfileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminProfile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminProfileResponseObject); ok {
+		if err := validResponse.VisitGetAdminProfileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutAdminProfile operation middleware
+func (sh *strictHandler) PutAdminProfile(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID) {
+	var request PutAdminProfileRequestObject
+
+	request.UserId = userId
+
+	var body PutAdminProfileJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutAdminProfile(ctx, request.(PutAdminProfileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutAdminProfile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutAdminProfileResponseObject); ok {
+		if err := validResponse.VisitPutAdminProfileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // ListCities operation middleware
@@ -900,57 +2257,84 @@ func (sh *strictHandler) GetQuestionnaire(w http.ResponseWriter, r *http.Request
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

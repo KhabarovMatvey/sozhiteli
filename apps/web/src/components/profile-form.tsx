@@ -1,10 +1,8 @@
 'use client';
 
-import { type Problem, type ProfileSchemas, fieldErrors } from '@sozhiteli/api-client';
-import Link from 'next/link';
-import { useState, type FormEvent } from 'react';
+import { type Problem, type ProfileSchemas, fieldErrors, networkProblem } from '@sozhiteli/api-client';
+import { useState, type FormEvent, type ReactNode } from 'react';
 
-import { useApi } from '@/lib/api';
 import type { City, Questionnaire } from '@/lib/reference';
 
 import { CityPicker } from './city-picker';
@@ -12,6 +10,12 @@ import { ErrorMessage } from './states';
 
 type Profile = ProfileSchemas['Profile'];
 type ProfileInput = ProfileSchemas['ProfileInput'];
+
+/**
+ * Сохраняет анкету. Своя анкета уходит на /v1/me/profile, анкета пользователя
+ * в админке - на /v1/admin/users/{id}/profile; сама форма от этого не зависит.
+ */
+export type SaveProfile = (body: ProfileInput) => Promise<{ data?: Profile; error?: Problem }>;
 
 /** Значения полей формы; числа хранятся строками, пока пользователь их вводит. */
 interface Draft {
@@ -105,14 +109,17 @@ export function ProfileForm({
   initial,
   questionnaire,
   cities,
+  save,
   onSaved,
+  successMessage = 'Анкета сохранена.',
 }: {
   initial: Profile | null;
   questionnaire: Questionnaire;
   cities: City[];
+  save: SaveProfile;
   onSaved: (profile: Profile) => void;
+  successMessage?: ReactNode;
 }) {
-  const api = useApi();
   const [draft, setDraft] = useState<Draft>(() => draftFrom(initial));
   const [problem, setProblem] = useState<Problem | null>(null);
   const [saving, setSaving] = useState(false);
@@ -148,7 +155,13 @@ export function ProfileForm({
       habits: draft.habits,
       search_status: draft.search_status,
     };
-    const { data, error } = await api.profile.PUT('/v1/me/profile', { body });
+    let result: Awaited<ReturnType<SaveProfile>>;
+    try {
+      result = await save(body);
+    } catch {
+      result = { error: networkProblem };
+    }
+    const { data, error } = result;
     setSaving(false);
     if (data) {
       setSaved(true);
@@ -360,8 +373,7 @@ export function ProfileForm({
       {problem && <ErrorMessage problem={problem} />}
       {saved && (
         <div className="success" role="status">
-          Анкета сохранена. Через несколько секунд она появится у других.{' '}
-          <Link href="/candidates">Смотреть кандидатов →</Link>
+          {successMessage}
         </div>
       )}
       <div className="row">

@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "participant_id": "P001",
+  "prepared_at": "2026-10-01T09:00:00Z",
+  "participant_profile": {
+    "questionnaire_version": 1,
+    "city": "Тестовый город",
+    "districts": "Центр",
+    "budget_min_rub": 15000,
+    "budget_max_rub": 25000,
+    "move_in_from": "2026-11-01",
+    "move_in_to": "2026-11-15",
+    "household": {
+      "sleep": "Ложусь до 23:00, встаю в 07:00",
+      "noise": "Тишина с 23:00 до 07:00, звонки в наушниках",
+      "cleaning": "Уборка общих зон по графику",
+      "guests": "Предупреждаю о гостях заранее",
+      "smoking": "Не курю",
+      "socializing": "Доброжелательное соседство без обязательств",
+      "personal_space": "В комнату входим после стука, вещи берём с разрешения",
+      "dishes": "В течение дня",
+      "pets": "Животных нет",
+      "shared_purchases": "Делим расходы пополам"
+    }
+  },
+  "candidates": [
+    {
+      "candidate_id": "C001",
+      "active_confirmed_at": "2026-10-01T08:30:00Z",
+      "share_consent": true,
+      "district_confirmed": true,
+      "conditions_confirmed": true,
+      "profile": {
+        "questionnaire_version": 1,
+        "city": "Тестовый город",
+        "districts": "Центр",
+        "budget_min_rub": 15000,
+        "budget_max_rub": 25000,
+        "move_in_from": "2026-11-01",
+        "move_in_to": "2026-11-15",
+        "household": {
+          "sleep": "Ложусь до 23:00, встаю в 07:00",
+          "noise": "Тишина с 23:00 до 07:00, звонки в наушниках",
+          "cleaning": "Уборка общих зон по графику",
+          "guests": "Предупреждаю о гостях заранее",
+          "smoking": "Не курю",
+          "socializing": "Доброжелательное соседство без обязательств",
+          "personal_space": "В комнату входим после стука, вещи берём с разрешения",
+          "dishes": "В течение дня",
+          "pets": "Животных нет",
+          "shared_purchases": "Делим расходы пополам"
+        }
+      }
+    },
+    {
+      "candidate_id": "C002",
+      "active_confirmed_at": "2026-10-01T08:30:00Z",
+      "share_consent": true,
+      "district_confirmed": true,
+      "conditions_confirmed": true,
+      "profile": {
+        "questionnaire_version": 1,
+        "city": "Тестовый город",
+        "districts": "Центр",
+        "budget_min_rub": 15000,
+        "budget_max_rub": 25000,
+        "move_in_from": "2026-11-01",
+        "move_in_to": "2026-11-15",
+        "household": {
+          "sleep": "Ложусь после 01:00, встаю в 09:00",
+          "noise": "Поздно работаю за компьютером, готов пользоваться наушниками",
+          "cleaning": "Уборка общих зон по графику",
+          "guests": "Предупреждаю о гостях заранее",
+          "smoking": "Не курю",
+          "socializing": "Доброжелательное соседство без обязательств",
+          "personal_space": "В комнату входим после стука, вещи берём с разрешения",
+          "dishes": "В течение дня",
+          "pets": "Животных нет",
+          "shared_purchases": "Делим расходы пополам"
+        }
+      }
+    }
+  ]
+}

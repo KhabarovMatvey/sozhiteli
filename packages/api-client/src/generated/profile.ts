@@ -4,6 +4,118 @@
  */
 
 export interface paths {
+  '/v1/admin/users': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Все зарегистрированные учётные записи
+     * @description Только роль sozhiteli-admin. Данные читает сервис через Keycloak Admin REST с правами view-users. Сервисные учётные записи, если их возвращает провайдер, отмечены отдельно.
+     */
+    get: operations['listAdminUsers'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/database': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Размер базы Profile и число строк в разрешённых таблицах */
+    get: operations['getAdminDatabase'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/tables/{table}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Строки разрешённой таблицы Profile */
+    get: operations['listAdminTableRows'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/profiles': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Все анкеты пользователей
+     * @description Только роль sozhiteli-admin. Порядок - по идентификатору пользователя.
+     *     Поиск совпадает с частью имени без учёта регистра или с полным
+     *     идентификатором пользователя.
+     */
+    get: operations['listAdminProfiles'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/users/{user_id}/profile': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Идентификатор пользователя (claim sub токена Keycloak) */
+        user_id: string;
+      };
+      cookie?: never;
+    };
+    /**
+     * Анкета пользователя
+     * @description Только роль sozhiteli-admin.
+     */
+    get: operations['getAdminProfile'];
+    /**
+     * Создать или заменить анкету пользователя
+     * @description Только роль sozhiteli-admin. Правила проверки те же, что у собственной
+     *     анкеты. Создать анкету можно только для учётной записи, существующей в
+     *     Keycloak (иначе code = user_not_found). Замена существующей анкеты
+     *     учётную запись не проверяет.
+     */
+    put: operations['putAdminProfile'];
+    post?: never;
+    /**
+     * Удалить анкету пользователя
+     * @description Только роль sozhiteli-admin. Удаляется только анкета. Учётная запись в
+     *     Keycloak, контакт и запросы на контакт остаются. Из выдачи анкета
+     *     исчезает в пределах интервала синхронизации.
+     */
+    delete: operations['deleteAdminProfile'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/questionnaire': {
     parameters: {
       query?: never;
@@ -74,6 +186,53 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    AdminUser: {
+      /** Format: uuid */
+      id: string;
+      username: string;
+      email: string;
+      enabled: boolean;
+      email_verified: boolean;
+      /** Format: date-time */
+      created_at: string | null;
+      service_account: boolean;
+      /** @description Есть ли у учётной записи анкета в Profile */
+      has_profile: boolean;
+    };
+    AdminUserList: {
+      items: components['schemas']['AdminUser'][];
+      /**
+       * Format: int64
+       * @description Число учётных записей, возвращаемых Keycloak с тем же поисковым фильтром
+       */
+      total: number;
+      next_cursor: string | null;
+    };
+    AdminProfileList: {
+      items: components['schemas']['Profile'][];
+      next_cursor: string | null;
+    };
+    AdminDatabase: {
+      /** @enum {string} */
+      service: 'profile';
+      database: string;
+      /** Format: int64 */
+      size_bytes: number;
+      tables: components['schemas']['AdminTableSummary'][];
+    };
+    AdminTableSummary: {
+      name: string;
+      label: string;
+      /** Format: int64 */
+      row_count: number;
+      columns: string[];
+    };
+    AdminTableRows: {
+      table: string;
+      columns: string[];
+      rows: string[][];
+      next_cursor: string | null;
+    };
     /** @description Единый формат ошибки (RFC 9457). Клиент ветвится по полю code. */
     Problem: {
       /** @example urn:sozhiteli:problem:validation_failed */
@@ -219,6 +378,15 @@ export interface components {
     };
   };
   responses: {
+    /** @description Требуется роль sozhiteli-admin (code = forbidden) */
+    Forbidden: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        'application/problem+json': components['schemas']['Problem'];
+      };
+    };
     /** @description Запрос не соответствует схеме (code = invalid_request) */
     BadRequest: {
       headers: {
@@ -256,13 +424,240 @@ export interface components {
       };
     };
   };
-  parameters: never;
+  parameters: {
+    AdminLimit: number;
+    /** @description Непрозрачный курсор предыдущей страницы; связан с таблицей или поиском */
+    AdminCursor: string;
+  };
   requestBodies: never;
   headers: never;
   pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  listAdminUsers: {
+    parameters: {
+      query?: {
+        limit?: components['parameters']['AdminLimit'];
+        /** @description Непрозрачный курсор предыдущей страницы; связан с таблицей или поиском */
+        cursor?: components['parameters']['AdminCursor'];
+        search?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Страница учётных записей, включая ещё не заполнивших анкету */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminUserList'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      503: components['responses']['Error'];
+      default: components['responses']['Error'];
+    };
+  };
+  getAdminDatabase: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Сводка своей базы без SQL-доступа и реквизитов подключения */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminDatabase'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      default: components['responses']['Error'];
+    };
+  };
+  listAdminTableRows: {
+    parameters: {
+      query?: {
+        limit?: components['parameters']['AdminLimit'];
+        /** @description Непрозрачный курсор предыдущей страницы; связан с таблицей или поиском */
+        cursor?: components['parameters']['AdminCursor'];
+      };
+      header?: never;
+      path: {
+        table: 'profile' | 'city' | 'profile_deletion';
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Строки в порядке первичного ключа; значения представлены строками */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminTableRows'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['Error'];
+      default: components['responses']['Error'];
+    };
+  };
+  listAdminProfiles: {
+    parameters: {
+      query?: {
+        limit?: components['parameters']['AdminLimit'];
+        /** @description Непрозрачный курсор предыдущей страницы; связан с таблицей или поиском */
+        cursor?: components['parameters']['AdminCursor'];
+        search?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Страница анкет */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminProfileList'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      default: components['responses']['Error'];
+    };
+  };
+  getAdminProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Идентификатор пользователя (claim sub токена Keycloak) */
+        user_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Анкета */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Profile'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      /** @description Анкета ещё не создана (code = profile_not_found) */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['Problem'];
+        };
+      };
+      default: components['responses']['Error'];
+    };
+  };
+  putAdminProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Идентификатор пользователя (claim sub токена Keycloak) */
+        user_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ProfileInput'];
+      };
+    };
+    responses: {
+      /** @description Сохранённая анкета */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Profile'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      /** @description Учётной записи с таким идентификатором нет (code = user_not_found) */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['Problem'];
+        };
+      };
+      422: components['responses']['UnprocessableEntity'];
+      503: components['responses']['Error'];
+      default: components['responses']['Error'];
+    };
+  };
+  deleteAdminProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Идентификатор пользователя (claim sub токена Keycloak) */
+        user_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Анкета удалена */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      /** @description Анкеты нет (code = profile_not_found) */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['Problem'];
+        };
+      };
+      default: components['responses']['Error'];
+    };
+  };
   getQuestionnaire: {
     parameters: {
       query?: never;

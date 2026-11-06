@@ -84,6 +84,7 @@ export function createApiClients(options: ApiClientOptions): ApiClients {
 }
 
 export * from './presentation';
+export * from './access';
 
 /** Проверяет, что значение - ошибка API в едином формате. */
 export function isProblem(value: unknown): value is Problem {

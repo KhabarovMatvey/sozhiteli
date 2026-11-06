@@ -26,6 +26,10 @@
       {
         "name": "internal.profile-changes.read",
         "description": "Чтение ленты изменений анкет (внутренний API Profile). Только для сервисных клиентов."
+      },
+      {
+        "name": "sozhiteli-admin",
+        "description": "Встроенная панель администратора: чтение пользователей и данных сервисов. Назначается вручную."
       }
     ]
   },
@@ -59,6 +63,19 @@
             "access.token.claim": "true",
             "id.token.claim": "false"
           }
+        },
+        {
+          "name": "realm-roles-access-token",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "multivalued": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
         }
       ]
     },
@@ -88,6 +105,19 @@
             "included.custom.audience": "sozhiteli-api",
             "access.token.claim": "true",
             "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "realm-roles-access-token",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "multivalued": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
           }
         }
       ],
@@ -138,8 +168,33 @@
             "access.token.claim": "true",
             "id.token.claim": "false"
           }
+        },
+        {
+          "name": "realm-roles-access-token",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "multivalued": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
         }
       ]
+    },
+    {
+      "clientId": "profile-admin-reader",
+      "name": "Profile: чтение пользователей для встроенной админки",
+      "description": "Серверный клиент без входа человека. Только realm-management:view-users.",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
     }
   ],
   "users": [
@@ -180,6 +235,16 @@
           "temporary": false
         }
       ]
+    },
+    {
+      "username": "service-account-profile-admin-reader",
+      "enabled": true,
+      "serviceAccountClientId": "profile-admin-reader",
+      "clientRoles": {
+        "realm-management": [
+          "view-users"
+        ]
+      }
     }
   ],
   "components": {
