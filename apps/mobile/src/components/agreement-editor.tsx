@@ -2,14 +2,24 @@
  * Договорённости пары после обмена контактами. Повторяет
  * apps/web/src/components/agreement-editor.tsx.
  */
-import { type InteractionSchemas, type Problem, agreementTopics, formatDate } from '@sozhiteli/api-client';
+import {
+  type InteractionSchemas,
+  type Problem,
+  agreementTopics,
+  appendToAgreement,
+  formatDate,
+} from '@sozhiteli/api-client';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 
+import { SharesCalculator } from '@/components/shares-calculator';
 import { Button, ErrorBox, Field, Loading, Note, T } from '@/components/ui';
 import { useApi } from '@/lib/api';
 
 type Items = InteractionSchemas['AgreementItems'];
+
+/** Лимит одной темы договорённости (maxLength в контракте Interaction). */
+const TOPIC_MAX_LENGTH = 300;
 
 export function AgreementEditor({ requestId }: { requestId: string }) {
   const api = useApi();
@@ -65,18 +75,30 @@ export function AgreementEditor({ requestId }: { requestId: string }) {
         {updated.at ? ` Изменено ${formatDate(updated.at)}${updated.byMe ? ' вами' : ' собеседником'}.` : ''}
       </T>
       {agreementTopics.map((topic) => (
-        <Field
-          key={topic.code}
-          label={topic.label}
-          placeholder={topic.hint}
-          value={items[topic.code] ?? ''}
-          maxLength={300}
-          multiline
-          onChangeText={(v) => {
-            setSaved(false);
-            setItems({ ...items, [topic.code]: v });
-          }}
-        />
+        <View key={topic.code} style={{ gap: 8 }}>
+          <Field
+            label={topic.label}
+            placeholder={topic.hint}
+            value={items[topic.code] ?? ''}
+            maxLength={TOPIC_MAX_LENGTH}
+            multiline
+            onChangeText={(v) => {
+              setSaved(false);
+              setItems({ ...items, [topic.code]: v });
+            }}
+          />
+          {topic.code === 'payments' && (
+            <SharesCalculator
+              onInsert={(text) => {
+                const next = appendToAgreement(items.payments, text, TOPIC_MAX_LENGTH);
+                if (next === null) return false;
+                setSaved(false);
+                setItems({ ...items, payments: next });
+                return true;
+              }}
+            />
+          )}
+        </View>
       ))}
       {problem && <ErrorBox problem={problem} />}
       {saved && <Note kind="ok">Сохранено</Note>}

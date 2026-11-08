@@ -8,6 +8,7 @@ import {
   type InteractionSchemas,
   type Problem,
   agreementTopics,
+  appendToAgreement,
   formatDate,
   problemMessage,
 } from '@sozhiteli/api-client';
@@ -15,9 +16,13 @@ import { type FormEvent, useEffect, useState } from 'react';
 
 import { useApi } from '@/lib/api';
 
+import { SharesCalculator } from './shares-calculator';
 import { Loading } from './states';
 
 type Items = InteractionSchemas['AgreementItems'];
+
+/** Лимит одной темы договорённости (maxLength в контракте Interaction). */
+const TOPIC_MAX_LENGTH = 300;
 
 export function AgreementEditor({ requestId }: { requestId: string }) {
   const api = useApi();
@@ -75,20 +80,33 @@ export function AgreementEditor({ requestId }: { requestId: string }) {
         {updated.at && ` Изменено ${formatDate(updated.at)}${updated.byMe ? ' вами' : ' собеседником'}.`}
       </p>
       {agreementTopics.map((topic) => (
-        <label key={topic.code} className="field">
-          <span className="label small">{topic.label}</span>
-          <textarea
-            className="input"
-            rows={2}
-            maxLength={300}
-            placeholder={topic.hint}
-            value={items[topic.code] ?? ''}
-            onChange={(e) => {
-              setSaved(false);
-              setItems({ ...items, [topic.code]: e.target.value });
-            }}
-          />
-        </label>
+        <div key={topic.code} className="stack stack-tight">
+          <label className="field">
+            <span className="label small">{topic.label}</span>
+            <textarea
+              className="input"
+              rows={topic.code === 'payments' ? 3 : 2}
+              maxLength={TOPIC_MAX_LENGTH}
+              placeholder={topic.hint}
+              value={items[topic.code] ?? ''}
+              onChange={(e) => {
+                setSaved(false);
+                setItems({ ...items, [topic.code]: e.target.value });
+              }}
+            />
+          </label>
+          {topic.code === 'payments' && (
+            <SharesCalculator
+              onInsert={(text) => {
+                const next = appendToAgreement(items.payments, text, TOPIC_MAX_LENGTH);
+                if (next === null) return false;
+                setSaved(false);
+                setItems({ ...items, payments: next });
+                return true;
+              }}
+            />
+          )}
+        </div>
       ))}
       {problem && (
         <div className="alert" role="alert">

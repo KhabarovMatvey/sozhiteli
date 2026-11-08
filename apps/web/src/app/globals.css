@@ -1456,3 +1456,33 @@ textarea.input {
   border-top: 1px solid var(--line);
   padding-top: 16px;
 }
+
+/* ---------- калькулятор долей в договорённости о платежах ---------- */
+
+.shares {
+  border: 1.5px dashed var(--line);
+  border-radius: var(--radius-m);
+  padding: 8px 12px;
+}
+
+.shares summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.shares[open] > .stack {
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.shares-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.shares-add {
+  justify-self: start;
+}
